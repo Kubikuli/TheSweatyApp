@@ -477,7 +477,30 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
         );
         return shouldLeave ?? false;
       },
-      child: Scaffold(
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: const Color.fromARGB(255, 36, 36, 36),
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade700, width: 1),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade700, width: 1),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
+            ),
+            labelStyle: const TextStyle(color: Color.fromARGB(255, 180, 180, 180)),
+            hintStyle: const TextStyle(color: Color.fromARGB(255, 130, 130, 130)),
+          ),
+        ),
+        child: Scaffold(
       appBar: AppBar(
         title: Text(isEdit ? 'Edit Workout' : 'Create Workout'),
         actions: [
@@ -489,10 +512,14 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(16.0),
+          : GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.all(16.0),
                 children: [
                   TextFormField(
                     controller: _nameController,
@@ -708,6 +735,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                                 onLongPress: () => _editExerciseBottomSheet(index),
                                 child: Card(
                                   margin: EdgeInsets.zero,
+                                  color: const Color.fromARGB(255, 30, 30, 30),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                     decoration: BoxDecoration(
@@ -828,7 +856,17 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                                                   _editingExerciseIndex = null;
                                                 }
                                               } else {
-                                                _exercises[index] = ex.copyWith(sets: ex.sets - 1);
+                                                // Decrease sets and propagate to group children if this is a group
+                                                final newSets = ex.sets - 1;
+                                                _exercises[index] = ex.copyWith(sets: newSets);
+                                                if (isGroup && ex.id != null) {
+                                                  for (int i = 0; i < _exercises.length; i++) {
+                                                    final child = _exercises[i];
+                                                    if (child.parentGroupId == ex.id) {
+                                                      _exercises[i] = child.copyWith(sets: newSets);
+                                                    }
+                                                  }
+                                                }
                                               }
                                             });
                                           },
@@ -841,7 +879,17 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                                         IconButton(
                                           onPressed: () {
                                             setState(() {
-                                              _exercises[index] = ex.copyWith(sets: ex.sets + 1);
+                                              // Increase sets and propagate to group children if this is a group
+                                              final newSets = ex.sets + 1;
+                                              _exercises[index] = ex.copyWith(sets: newSets);
+                                              if (isGroup && ex.id != null) {
+                                                for (int i = 0; i < _exercises.length; i++) {
+                                                  final child = _exercises[i];
+                                                  if (child.parentGroupId == ex.id) {
+                                                    _exercises[i] = child.copyWith(sets: newSets);
+                                                  }
+                                                }
+                                              }
                                             });
                                           },
                                           icon: const Icon(Icons.add),
@@ -881,7 +929,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                     onTap: _addExercise,
                     child: Card(
                       margin: const EdgeInsets.only(bottom: 12.0),
-                      color: Colors.white.withOpacity(0.05),
+                      color: const Color.fromARGB(255, 30, 30, 30),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         child: Row(
@@ -890,7 +938,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                             Icon(
                               Icons.add_circle_outline,
                               size: 20,
-                              color: Colors.white.withOpacity(0.6),
+                              color: Colors.white.withOpacity(0.7),
                             ),
                             const SizedBox(width: 8),
                             Text(
@@ -908,6 +956,8 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                 ],
               ),
             ),
+          ),
+        ),
       ),
     );
   }

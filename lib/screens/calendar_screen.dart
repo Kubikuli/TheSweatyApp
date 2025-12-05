@@ -44,7 +44,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       if (!mounted) return;
       setState(() {
         _workouts = workouts;
-        _sessions = sessions;
+        _sessions = sessions.where((s) => s.isCompleted).toList();
       });
     } catch (e) {
       if (!mounted) return;

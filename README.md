@@ -1,4 +1,4 @@
-# Workout App
+# TheSweatyApp
 
 A personalized Flutter workout tracking application with local database storage for managing workouts, tracking sessions, and timing exercises.
 

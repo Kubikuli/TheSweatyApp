@@ -85,4 +85,19 @@ class WorkoutService {
   Future<WorkoutSession?> getLastCompletedSessionForWorkout(int workoutId) async {
     return await _db.getLastCompletedSessionForWorkout(workoutId);
   }
+
+  Future<WorkoutSession?> getLatestIncompleteWorkoutSession() async {
+    return await _db.getLatestIncompleteWorkoutSession();
+  }
+
+  Future<int> checkpointWorkoutSession(int sessionId) async {
+    return await _db.checkpointWorkoutSession(
+      id: sessionId,
+      endTime: DateTime.now(),
+    );
+  }
+
+  Future<WorkoutSession?> getWorkoutSessionById(int id) async {
+    return await _db.getWorkoutSessionById(id);
+  }
 }

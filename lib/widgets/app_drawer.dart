@@ -17,13 +17,15 @@ class AppDrawer extends StatelessWidget {
             title: const Text('Settings'),
             onTap: () {
               Navigator.pop(context);
+              Navigator.pushNamed(context, '/settings');
             },
           ),
           ListTile(
-            leading: const Icon(Icons.data_usage),
+            leading: const Icon(Icons.bar_chart_rounded),
             title: const Text('Statistics'),
             onTap: () {
               Navigator.pop(context);
+              Navigator.pushNamed(context, '/statistics');
             },
           ),
           ListTile(

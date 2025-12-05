@@ -173,6 +173,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                               ),
                               child: Card(
                                 margin: EdgeInsets.zero,
+                                color: const Color.fromARGB(255, 30, 30, 30),
                                 child: Container(
                                   padding: const EdgeInsets.all(16.0),
                                   decoration: isSubExercise
@@ -233,7 +234,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                                       vertical: 2,
                                                     ),
                                                     decoration: BoxDecoration(
-                                                      color: Theme.of(context).primaryColor.withOpacity(0.2),
+                                                      color: Theme.of(context).primaryColor.withOpacity(0.7),
                                                       borderRadius: BorderRadius.circular(8),
                                                     ),
                                                     child: Text(
@@ -241,7 +242,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                                       style: TextStyle(
                                                         fontSize: 11,
                                                         fontWeight: FontWeight.bold,
-                                                        color: Theme.of(context).primaryColor,
+                                                        color: Colors.black,
                                                       ),
                                                     ),
                                                   ),

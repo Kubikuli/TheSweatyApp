@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/timer_session.dart';
 import '../services/timer_service.dart';
 import 'timer_history_screen.dart';
@@ -15,36 +17,41 @@ class TimerScreen extends StatefulWidget {
 class _TimerScreenState extends State<TimerScreen> {
   final TimerService _timerService = TimerService();
   Timer? _timer;
-  int _seconds = 0;
   bool _isRunning = false;
-  DateTime? _startTime;
-  Duration _elapsed = Duration.zero;
+  DateTime? _startTime; // Wall-clock start time for running timer
+  Duration _elapsed = Duration.zero; // Displayed time
+  Duration _pausedAccumulated = Duration.zero; // Accumulated time from pauses
   Duration _goal = Duration.zero;
 
   @override
   void initState() {
     super.initState();
     _fetchGoal();
+    _restoreTimerState();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    // Allow the device to sleep again when leaving the screen
+    WakelockPlus.disable();
     super.dispose();
   }
 
   void _startTimer() {
     setState(() {
       _isRunning = true;
-      _startTime = DateTime.now().subtract(Duration(seconds: _seconds));
+      _startTime ??= DateTime.now();
     });
+    // Keep the display awake while timing
+    WakelockPlus.enable();
     
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
-        _seconds++;
-        _elapsed = Duration(seconds: _seconds);
+        _elapsed = _currentElapsed();
       });
     });
+    _persistTimerState();
   }
 
   void _pauseTimer() {
@@ -52,6 +59,15 @@ class _TimerScreenState extends State<TimerScreen> {
       _isRunning = false;
     });
     _timer?.cancel();
+    if (_startTime != null) {
+      // Accumulate elapsed up to now, then clear start time
+      _pausedAccumulated += DateTime.now().difference(_startTime!);
+      _startTime = null;
+      _elapsed = _pausedAccumulated;
+    }
+    // Allow sleep while paused
+    WakelockPlus.disable();
+    _persistTimerState();
   }
 
   void _resumeTimer() {
@@ -60,12 +76,15 @@ class _TimerScreenState extends State<TimerScreen> {
 
   Future<void> _stopTimer() async {
     _timer?.cancel();
+    // Disable wakelock when stopping
+    WakelockPlus.disable();
     
-    if (_seconds > 0 && _startTime != null) {
+    final total = _currentElapsed();
+    if (total.inSeconds > 0) {
       final session = TimerSession(
-        startTime: _startTime!,
+        startTime: _effectiveStartTime(),
         endTime: DateTime.now(),
-        durationSeconds: _seconds,
+        durationSeconds: total.inSeconds,
       );
       
       await _timerService.saveTimerSession(session);
@@ -81,20 +100,24 @@ class _TimerScreenState extends State<TimerScreen> {
     
     setState(() {
       _isRunning = false;
-      _seconds = 0;
       _startTime = null;
       _elapsed = Duration.zero; // ensure UI resets to 0
+      _pausedAccumulated = Duration.zero;
     });
+    _clearTimerState();
   }
 
   void _resetTimer() {
     _timer?.cancel();
     setState(() {
       _isRunning = false;
-      _seconds = 0;
       _startTime = null;
       _elapsed = Duration.zero; // ensure displayed time resets
+      _pausedAccumulated = Duration.zero;
     });
+    // Ensure wakelock is disabled after reset
+    WakelockPlus.disable();
+    _clearTimerState();
   }
 
   void _viewHistory() {
@@ -127,6 +150,67 @@ class _TimerScreenState extends State<TimerScreen> {
         _goal = goal ?? Duration.zero;
       });
     }
+  }
+
+  // Compute current elapsed time from wall clock and accumulated paused time
+  Duration _currentElapsed() {
+    if (_isRunning && _startTime != null) {
+      return _pausedAccumulated + DateTime.now().difference(_startTime!);
+    }
+    return _pausedAccumulated;
+  }
+
+  Future<void> _restoreTimerState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final running = prefs.getBool('timer_running') ?? false;
+    final startIso = prefs.getString('timer_start_iso');
+    final pausedSecs = prefs.getInt('timer_paused_accum_secs') ?? 0;
+
+    DateTime? start;
+    if (startIso != null) {
+      try {
+        start = DateTime.parse(startIso);
+      } catch (_) {}
+    }
+
+    setState(() {
+      _isRunning = running && start != null;
+      _startTime = start;
+      _pausedAccumulated = Duration(seconds: pausedSecs);
+      _elapsed = _currentElapsed();
+    });
+
+    if (_isRunning) {
+      // Recreate the periodic tick
+      WakelockPlus.enable();
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) return;
+        setState(() {
+          _elapsed = _currentElapsed();
+        });
+      });
+    }
+  }
+
+  Future<void> _persistTimerState() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('timer_running', _isRunning);
+    await prefs.setString('timer_start_iso', _startTime?.toIso8601String() ?? '');
+    await prefs.setInt('timer_paused_accum_secs', _pausedAccumulated.inSeconds);
+  }
+
+  Future<void> _clearTimerState() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('timer_running');
+    await prefs.remove('timer_start_iso');
+    await prefs.remove('timer_paused_accum_secs');
+  }
+
+  // For saving we need a consistent start time representing total elapsed
+  DateTime _effectiveStartTime() {
+    // total elapsed = now - effectiveStart
+    final total = _currentElapsed();
+    return DateTime.now().subtract(total);
   }
 
   String _formatDuration(Duration d) {
@@ -183,7 +267,7 @@ class _TimerScreenState extends State<TimerScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (!_isRunning && _seconds == 0) ...[
+                if (!_isRunning && _elapsed.inSeconds == 0) ...[
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(

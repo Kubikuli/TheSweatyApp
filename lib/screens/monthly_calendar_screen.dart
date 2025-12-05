@@ -38,7 +38,7 @@ class _MonthlyCalendarScreenState extends State<MonthlyCalendarScreen> {
       final sessions = await _workoutService.getWorkoutSessionsByDateRange(firstDay, lastDay);
       final workouts = await _workoutService.getAllWorkouts();
       setState(() {
-        _sessions = sessions;
+        _sessions = sessions.where((s) => s.isCompleted).toList();
         _workouts = workouts;
       });
     } finally {

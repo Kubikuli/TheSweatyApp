@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../models/workout.dart';
 import '../models/exercise.dart';
 import '../services/workout_service.dart';
@@ -39,6 +40,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   Timer? _restTimer;
   final Stopwatch _workoutStopwatch = Stopwatch();
   Timer? _stopwatchTimer;
+  int _initialElapsedSeconds = 0;
   // Map of groupId -> total sets defined on the group container
   final Map<int, int> _groupSetsById = {};
   
@@ -48,7 +50,10 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   @override
   void initState() {
     super.initState();
+    // Keep the screen awake during the entire active workout flow
+    WakelockPlus.enable();
     _loadExercises();
+    _loadSessionCheckpoint();
   }
 
   @override
@@ -56,6 +61,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     _restTimer?.cancel();
     _stopwatchTimer?.cancel();
     _workoutStopwatch.stop();
+    // Allow the device to sleep again when leaving the workout
+    WakelockPlus.disable();
     super.dispose();
   }
 
@@ -102,12 +109,33 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     }
   }
 
+  Future<void> _loadSessionCheckpoint() async {
+    try {
+      final session = await _workoutService.getWorkoutSessionById(widget.sessionId);
+      if (session != null) {
+        final end = session.endTime;
+        final start = session.startTime;
+        if (end != null) {
+          final diff = end.difference(start).inSeconds;
+          if (diff > 0) {
+            setState(() {
+              _initialElapsedSeconds = diff;
+            });
+          }
+        }
+      }
+    } catch (_) {
+      // ignore
+    }
+  }
+
   void _startWorkout() {
     setState(() {
       _state = WorkoutState.active;
       _workoutStopwatch.start();
       _stopwatchTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (mounted) setState(() {});
+        if (!mounted) return;
+        setState(() {});
       });
     });
   }
@@ -170,6 +198,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   }
 
   void _completeSet() {
+    // Save a checkpoint at each set completion so duration is up-to-date
+    _workoutService.checkpointWorkoutSession(widget.sessionId);
     // Capture current position before advancing so user can go back
     _history.add(_WorkoutSnapshot(_currentExerciseIndex, _currentSet));
     final currentExercise = _exercises[_currentExerciseIndex];
@@ -506,7 +536,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
               color: Colors.black,
               padding: const EdgeInsets.symmetric(vertical: 16),
               child: Text(
-                _formatDuration(_workoutStopwatch.elapsed.inSeconds),
+                _formatDuration(_initialElapsedSeconds + _workoutStopwatch.elapsed.inSeconds),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 32,
@@ -726,7 +756,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 if (currentExercise.weight != null &&
                         currentExercise.weight! > 0 &&
                         currentExercise.reps > 0)
-                  const SizedBox(width: 220),
+                  const SizedBox(width: 170),
                 if (currentExercise.reps > 0)
                   Text(
                     '${currentExercise.reps}x',

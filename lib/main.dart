@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/main_screen.dart';
+import 'screens/statistics_screen.dart';
+import 'screens/settings_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -11,7 +13,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Workout App',
+      title: 'TheSweatyApp',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.dark,
       theme: ThemeData(
@@ -30,6 +32,10 @@ class MyApp extends StatelessWidget {
         appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF111111)),
       ),
       home: const MainScreen(),
+      routes: {
+        '/statistics': (context) => const StatisticsScreen(),
+        '/settings': (context) => const SettingsScreen(),
+      },
     );
   }
 }

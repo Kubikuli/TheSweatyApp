@@ -230,6 +230,50 @@ class DatabaseHelper {
     );
   }
 
+  /// Gets the most recent incomplete (in-progress) workout session, if any
+  Future<WorkoutSession?> getLatestIncompleteWorkoutSession() async {
+    final db = await database;
+    final maps = await db.query(
+      'workout_sessions',
+      where: 'is_completed = 0',
+      orderBy: 'start_time DESC',
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return WorkoutSession.fromMap(maps.first);
+  }
+
+  /// Updates the end_time of an in-progress workout session as a checkpoint.
+  /// This does not mark the session as completed.
+  Future<int> checkpointWorkoutSession({
+    required int id,
+    required DateTime endTime,
+  }) async {
+    final db = await database;
+    return await db.update(
+      'workout_sessions',
+      {
+        'end_time': endTime.toIso8601String(),
+        'is_completed': 0,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Fetch a single workout session by ID
+  Future<WorkoutSession?> getWorkoutSessionById(int id) async {
+    final db = await database;
+    final maps = await db.query(
+      'workout_sessions',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return WorkoutSession.fromMap(maps.first);
+  }
+
   /// Gets the most recently completed workout
   Future<Workout?> getLastCompletedWorkout() async {
     final db = await database;
