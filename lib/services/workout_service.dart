@@ -61,6 +61,20 @@ class WorkoutService {
     );
   }
 
+  /// Completes a workout session using a provided endTime so saved duration
+  /// can exactly match the UI display.
+  Future<int> completeWorkoutSessionWithEnd(
+    int sessionId,
+    DateTime endTime, {
+    String? notes,
+  }) async {
+    return await _db.completeWorkoutSession(
+      id: sessionId,
+      endTime: endTime,
+      notes: notes,
+    );
+  }
+
   Future<List<WorkoutSession>> getWorkoutSessionsByDateRange(
     DateTime start,
     DateTime end,
@@ -69,8 +83,10 @@ class WorkoutService {
   }
 
   Future<List<WorkoutSession>> getWorkoutSessionsForWeek(DateTime date) async {
-    final startOfWeek = date.subtract(Duration(days: date.weekday - 1));
-    final endOfWeek = startOfWeek.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+    // Normalize to date-only (midnight) to avoid time-based comparison issues
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    final startOfWeek = dateOnly.subtract(Duration(days: dateOnly.weekday - 1));
+    final endOfWeek = startOfWeek.add(const Duration(days: 7));
     return await getWorkoutSessionsByDateRange(startOfWeek, endOfWeek);
   }
 
@@ -94,6 +110,15 @@ class WorkoutService {
     return await _db.checkpointWorkoutSession(
       id: sessionId,
       endTime: DateTime.now(),
+    );
+  }
+
+  /// Resets the session's start_time to now.
+  /// Use this when the user presses READY to ensure saved duration matches the UI timer.
+  Future<int> resetWorkoutSessionStartTime(int sessionId) async {
+    return await _db.setWorkoutSessionStartTime(
+      id: sessionId,
+      startTime: DateTime.now(),
     );
   }
 

@@ -20,6 +20,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   List<WorkoutSession> _sessions = [];
   List<Workout> _workouts = [];
   bool _isLoading = false;
+  static const double _swipeVelocityThreshold = 300; // px/s threshold to qualify as swipe
 
   @override
   void initState() {
@@ -29,7 +30,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   DateTime _getWeekStart(DateTime date) {
-    return date.subtract(Duration(days: date.weekday - 1));
+    // Normalize to date-only (midnight) to avoid time-based comparison issues
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    return dateOnly.subtract(Duration(days: dateOnly.weekday - 1));
   }
 
   bool _isSameDate(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
@@ -85,6 +88,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
         builder: (context) => const MonthlyCalendarScreen(),
       ),
     );
+  }
+
+  void _handleHorizontalSwipe(DragEndDetails details) {
+    final velocityX = details.primaryVelocity ?? 0;
+    if (velocityX > _swipeVelocityThreshold) {
+      _previousWeek();
+    } else if (velocityX < -_swipeVelocityThreshold) {
+      _nextWeek();
+    }
   }
 
   void _startNewWorkout() {
@@ -149,170 +161,166 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            // Week range header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${DateFormat('d.M.').format(weekDays.first)} - ${DateFormat('d.M.yyyy').format(weekDays.last)}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragEnd: _handleHorizontalSwipe,
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 25),
+              // Week range header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left, size: 40),
+                      onPressed: _previousWeek,
+                      tooltip: 'Previous week',
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: Text(
+                        '${DateFormat('d.M.').format(weekDays.first)} - ${DateFormat('d.M.yyyy').format(weekDays.last)}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right, size: 40),
+                      onPressed: _nextWeek,
+                      tooltip: 'Next week',
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: 12),
+              const SizedBox(height: 20),
 
-            // Days list styled like mockup
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      itemCount: 7,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final day = weekDays[index];
-                        // Highlighting "today" could be used later for styling
-                        final sessionsForDay = _sessions.where((s) {
-                          final d = s.startTime;
-                          return d.year == day.year && d.month == day.month && d.day == day.day;
-                        }).toList();
-                        final totalDurationSeconds = sessionsForDay.fold<int>(0, (sum, s) {
-                          final end = s.endTime;
-                          if (end == null) return sum;
-                          return sum + end.difference(s.startTime).inSeconds;
-                        });
+              // Days list styled like mockup
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        itemCount: 7,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final day = weekDays[index];
+                          // Highlighting "today" could be used later for styling
+                          final sessionsForDay = _sessions.where((s) {
+                            final d = s.startTime;
+                            return d.year == day.year && d.month == day.month && d.day == day.day;
+                          }).toList();
+                          final totalDurationSeconds = sessionsForDay.fold<int>(0, (sum, s) {
+                            final end = s.endTime;
+                            if (end == null) return sum;
+                            return sum + end.difference(s.startTime).inSeconds;
+                          });
 
-                        String formatLen(int secs) {
-                          final m = (secs % 3600) ~/ 60;
-                          final s = secs % 60;
-                          return '$m:${s.toString().padLeft(2, '0')}';
-                        }
+                          String formatLen(int secs) {
+                            final m = (secs % 3600) ~/ 60;
+                            final s = secs % 60;
+                            return '$m:${s.toString().padLeft(2, '0')}';
+                          }
 
-                        String typeLabel = '';
-                        if (sessionsForDay.isNotEmpty) {
-                          final firstSession = sessionsForDay.first;
-                          final workout = _workouts.firstWhere(
-                            (w) => w.id == firstSession.workoutId,
-                            orElse: () => Workout(name: 'Workout'),
-                          );
-                          typeLabel = workout.name;
-                        }
-                        final bg = dayColorFor(day, sessionsForDay);
-                        final now = DateTime.now();
-                        final isToday = now.year == day.year && now.month == day.month && now.day == day.day;
-                        final DateTime todayDate = DateTime(now.year, now.month, now.day);
-                        final DateTime dayDate = DateTime(day.year, day.month, day.day);
-                        final bool isPast = dayDate.isBefore(todayDate);
-                        final String labelText = typeLabel.isNotEmpty
-                            ? typeLabel
-                            : (isPast ? 'Rest' : '');
-                        Widget dayContent = Container(
-                          decoration: BoxDecoration(
-                            color: bg,
-                            borderRadius: BorderRadius.circular(16),
-                            border: isToday ? Border.all(color: const Color.fromARGB(255, 66, 137, 223), width: 2) : null,
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          child: Row(
-                            children: [
-                              // Day badge
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.25),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  DateFormat('EEE').format(day).toUpperCase(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
+                          String typeLabel = '';
+                          if (sessionsForDay.isNotEmpty) {
+                            final firstSession = sessionsForDay.first;
+                            final workout = _workouts.firstWhere(
+                              (w) => w.id == firstSession.workoutId,
+                              orElse: () => Workout(name: 'Workout'),
+                            );
+                            typeLabel = workout.name;
+                          }
+                          final bg = dayColorFor(day, sessionsForDay);
+                          final now = DateTime.now();
+                          final isToday = now.year == day.year && now.month == day.month && now.day == day.day;
+                          final DateTime todayDate = DateTime(now.year, now.month, now.day);
+                          final DateTime dayDate = DateTime(day.year, day.month, day.day);
+                          final bool isPast = dayDate.isBefore(todayDate);
+                          final String labelText = typeLabel.isNotEmpty
+                              ? typeLabel
+                              : (isPast ? 'Rest' : '');
+                          Widget dayContent = Container(
+                            decoration: BoxDecoration(
+                              color: bg,
+                              borderRadius: BorderRadius.circular(16),
+                              border: isToday ? Border.all(color: const Color.fromARGB(255, 66, 137, 223), width: 2) : null,
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            child: Row(
+                              children: [
+                                // Day badge
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.25),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              // Length
-                              Expanded(
-                                child: Text(
-                                  totalDurationSeconds > 0 ? formatLen(totalDurationSeconds) : '—',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontStyle: FontStyle.italic,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              // Type + play icon (today)
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    labelText,
+                                  child: Text(
+                                    DateFormat('EEE').format(day).toUpperCase(),
                                     style: const TextStyle(
                                       color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Length
+                                Expanded(
+                                  child: Text(
+                                    totalDurationSeconds > 0 ? formatLen(totalDurationSeconds) : '—',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontStyle: FontStyle.italic,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  if (isToday) ...[
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      width: 39,
-                                      height: 39,
-                                      decoration: BoxDecoration(
-                                        border: Border.all(color: const Color.fromARGB(255, 255, 255, 255)),
-                                        shape: BoxShape.circle,
+                                ),
+                                // Type + play icon (today)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      labelText,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
                                       ),
-                                      child: const Icon(Icons.play_arrow, color: Color.fromARGB(225, 255, 255, 255), size: 32),
                                     ),
+                                    if (isToday) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        width: 39,
+                                        height: 39,
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: const Color.fromARGB(255, 255, 255, 255)),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.play_arrow, color: Color.fromARGB(225, 255, 255, 255), size: 32),
+                                      ),
+                                    ],
                                   ],
-                                ],
-                              ),
-                            ],
-                          ),
-                        );
-
-                        if (isToday) {
-                          return GestureDetector(
-                            onTap: _startNewWorkout,
-                            child: dayContent,
+                                ),
+                              ],
+                            ),
                           );
-                        }
-                        return dayContent;
-                      },
-                    ),
-            ),
 
-            // Up/Down arrows like mockup (week navigation)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_drop_up, size: 90),
-                    onPressed: _nextWeek,
-                  ),
-                  const SizedBox(width: 24),
-                  IconButton(
-                    icon: const Icon(Icons.arrow_drop_down, size: 90),
-                    onPressed: _previousWeek,
-                  ),
-                ],
+                          if (isToday) {
+                            return GestureDetector(
+                              onTap: _startNewWorkout,
+                              child: dayContent,
+                            );
+                          }
+                          return dayContent;
+                        },
+                      ),
               ),
-            ),
-          ],
+
+            ],
+          ),
         ),
       ),
     );

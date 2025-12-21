@@ -24,7 +24,9 @@ class _TimerHistoryScreenState extends State<TimerHistoryScreen> {
   }
 
   DateTime _getWeekStart(DateTime date) {
-    return date.subtract(Duration(days: date.weekday - 1));
+    // Normalize to date-only (midnight) to avoid time-based comparison issues
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    return dateOnly.subtract(Duration(days: dateOnly.weekday - 1));
   }
 
   Future<void> _loadSessions() async {
@@ -74,6 +76,10 @@ class _TimerHistoryScreenState extends State<TimerHistoryScreen> {
         .reduce((a, b) => a > b ? a : b);
   }
 
+  int _getTotalDuration() {
+    return _sessions.fold<int>(0, (sum, s) => sum + s.durationSeconds);
+  }
+
   List<DateTime> _getWeekDays() {
     return List.generate(7, (index) => _selectedWeekStart.add(Duration(days: index)));
   }
@@ -82,6 +88,7 @@ class _TimerHistoryScreenState extends State<TimerHistoryScreen> {
   Widget build(BuildContext context) {
     final weekDays = _getWeekDays();
     final highestDuration = _getHighestDuration();
+    final totalDuration = _getTotalDuration();
 
     return Scaffold(
       appBar: AppBar(
@@ -125,19 +132,40 @@ class _TimerHistoryScreenState extends State<TimerHistoryScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.timer,
-                    color: Theme.of(context).primaryColor,
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.timer,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Highest: ${_formatDuration(highestDuration)}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 0),
-                  Text(
-                    'Highest: ${_formatDuration(highestDuration)}',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  const SizedBox(width: 24),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.summarize,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Total: ${_formatDuration(totalDuration)}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

@@ -182,23 +182,26 @@ class _SelectWorkoutScreenState extends State<SelectWorkoutScreen> {
   }
 
   String _getRelativeTime(DateTime dateTime) {
+    // Compare only calendar days (ignore hours/minutes)
     final now = DateTime.now();
-    final difference = now.difference(dateTime);
-    
-    if (difference.inDays == 0) {
+    final nowDate = DateTime(now.year, now.month, now.day);
+    final sessionDate = DateTime(dateTime.year, dateTime.month, dateTime.day);
+    final days = nowDate.difference(sessionDate).inDays;
+
+    if (days == 0) {
       return 'Today';
-    } else if (difference.inDays == 1) {
+    } else if (days == 1) {
       return 'Yesterday';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} days ago';
-    } else if (difference.inDays < 14) {
+    } else if (days < 7) {
+      return '$days days ago';
+    } else if (days < 14) {
       return '1 week ago';
-    } else if (difference.inDays < 30) {
-      return '${(difference.inDays / 7).floor()} weeks ago';
-    } else if (difference.inDays < 60) {
+    } else if (days < 30) {
+      return '${(days / 7).floor()} weeks ago';
+    } else if (days < 60) {
       return '1 month ago';
     } else {
-      return '${(difference.inDays / 30).floor()} months ago';
+      return '${(days / 30).floor()} months ago';
     }
   }
 

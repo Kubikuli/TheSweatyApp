@@ -192,6 +192,15 @@ class DatabaseHelper {
     return maps.map((map) => WorkoutSession.fromMap(map)).toList();
   }
 
+  Future<List<WorkoutSession>> getAllWorkoutSessions() async {
+    final db = await database;
+    final maps = await db.query(
+      'workout_sessions',
+      orderBy: 'start_time DESC',
+    );
+    return maps.map((map) => WorkoutSession.fromMap(map)).toList();
+  }
+
   Future<int> updateWorkoutSession(WorkoutSession session) async {
     final db = await database;
     return await db.update(
@@ -261,6 +270,23 @@ class DatabaseHelper {
     );
   }
 
+  /// Updates the start_time of a workout session. Useful to begin counting
+  /// duration when the user presses READY rather than at session creation.
+  Future<int> setWorkoutSessionStartTime({
+    required int id,
+    required DateTime startTime,
+  }) async {
+    final db = await database;
+    return await db.update(
+      'workout_sessions',
+      {
+        'start_time': startTime.toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   /// Fetch a single workout session by ID
   Future<WorkoutSession?> getWorkoutSessionById(int id) async {
     final db = await database;
@@ -324,6 +350,15 @@ class DatabaseHelper {
     return maps.map((map) => TimerSession.fromMap(map)).toList();
   }
 
+  Future<List<TimerSession>> getAllTimerSessions() async {
+    final db = await database;
+    final maps = await db.query(
+      'timer_sessions',
+      orderBy: 'start_time DESC',
+    );
+    return maps.map((map) => TimerSession.fromMap(map)).toList();
+  }
+
   Future<int> deleteTimerSession(int id) async {
     final db = await database;
     return await db.delete(
@@ -336,5 +371,15 @@ class DatabaseHelper {
   Future<void> close() async {
     final db = await database;
     await db.close();
+  }
+
+  Future<void> clearAllData() async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('exercises');
+      await txn.delete('workout_sessions');
+      await txn.delete('workouts');
+      await txn.delete('timer_sessions');
+    });
   }
 }

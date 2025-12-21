@@ -266,7 +266,15 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                           ),
                         ),
                         subtitle: workout.description != null
-                            ? Text(workout.description!)
+                            ? Text(
+                                workout.description!,
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withOpacity(0.7),
+                                ),
+                              )
                             : null,
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () => _viewWorkout(workout),

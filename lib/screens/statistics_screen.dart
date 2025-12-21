@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/workout_service.dart';
 import '../models/workout.dart';
+import '../services/timer_service.dart';
 
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
@@ -11,12 +12,15 @@ class StatisticsScreen extends StatefulWidget {
 
 class _StatisticsScreenState extends State<StatisticsScreen> {
   final WorkoutService _service = WorkoutService();
+  final TimerService _timerService = TimerService();
   bool _loading = true;
   int _totalCompleted = 0;
   double _avgPerWeek = 0;
   DateTime? _lastWorkoutDate;
   Map<Workout, int> _perWorkoutCounts = {};
   Map<Workout, Duration> _perWorkoutAvgDurations = {};
+  Duration _totalTimerDuration = Duration.zero;
+  Duration _maxTimerDuration = Duration.zero;
 
   @override
   void initState() {
@@ -34,6 +38,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     final now = DateTime.now();
     final startOfYear = DateTime(now.year, 1, 1);
     final sessionsThisYear = await _service.getWorkoutSessionsByDateRange(startOfYear, now);
+    final timerSessions = await _timerService.getTimerSessionsByDateRange(
+      DateTime.fromMillisecondsSinceEpoch(0),
+      now,
+    );
 
     final completedThisYear = sessionsThisYear.where((s) => s.isCompleted && s.endTime != null).toList();
     _totalCompleted = completedThisYear.length;
@@ -71,6 +79,13 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         w: _averageDuration(durationsByWorkoutId[w.id ?? -1] ?? const [])
     };
 
+    // Aggregate timer stats
+    final totalTimerSeconds = timerSessions.fold<int>(0, (sum, s) => sum + s.durationSeconds);
+    final maxTimerSeconds = timerSessions.fold<int>(0, (currentMax, s) =>
+        s.durationSeconds > currentMax ? s.durationSeconds : currentMax);
+    _totalTimerDuration = Duration(seconds: totalTimerSeconds);
+    _maxTimerDuration = Duration(seconds: maxTimerSeconds);
+
     if (mounted) {
       setState(() => _loading = false);
     }
@@ -106,6 +121,18 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     title: 'Last Workout',
                     value: _lastWorkoutDate != null ? _formatDate(_lastWorkoutDate!) : '—',
                     icon: Icons.access_time,
+                  ),
+                  const SizedBox(height: 12),
+                  _StatCard(
+                    title: 'Total Timer Time',
+                    value: _formatDuration(_totalTimerDuration),
+                    icon: Icons.timer_outlined,
+                  ),
+                  const SizedBox(height: 12),
+                  _StatCard(
+                    title: 'Max Timer',
+                    value: _formatDuration(_maxTimerDuration),
+                    icon: Icons.av_timer,
                   ),
                   const SizedBox(height: 24),
                   Text('By Workout', style: Theme.of(context).textTheme.titleMedium),

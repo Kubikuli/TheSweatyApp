@@ -234,15 +234,19 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                                       vertical: 2,
                                                     ),
                                                     decoration: BoxDecoration(
-                                                      color: Theme.of(context).primaryColor.withOpacity(0.7),
+                                                      color: Colors.black.withOpacity(0.3),
                                                       borderRadius: BorderRadius.circular(8),
+                                                      border: Border.all(
+                                                        color: Colors.white.withOpacity(0.3),
+                                                        width: 1,
+                                                      ),
                                                     ),
                                                     child: Text(
                                                       'Group',
-                                                      style: TextStyle(
+                                                      style: const TextStyle(
                                                         fontSize: 11,
                                                         fontWeight: FontWeight.bold,
-                                                        color: Colors.black,
+                                                        color: Colors.white,
                                                       ),
                                                     ),
                                                   ),

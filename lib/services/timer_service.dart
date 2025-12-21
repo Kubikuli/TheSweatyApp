@@ -16,8 +16,10 @@ class TimerService {
   }
 
   Future<List<TimerSession>> getTimerSessionsForWeek(DateTime date) async {
-    final startOfWeek = date.subtract(Duration(days: date.weekday - 1));
-    final endOfWeek = startOfWeek.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+    // Normalize to date-only (midnight) to avoid time-based comparison issues
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    final startOfWeek = dateOnly.subtract(Duration(days: dateOnly.weekday - 1));
+    final endOfWeek = startOfWeek.add(const Duration(days: 7));
     return await getTimerSessionsByDateRange(startOfWeek, endOfWeek);
   }
 

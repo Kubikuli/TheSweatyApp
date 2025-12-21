@@ -41,6 +41,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   final Stopwatch _workoutStopwatch = Stopwatch();
   Timer? _stopwatchTimer;
   int _initialElapsedSeconds = 0;
+  bool _hasCheckpoint = false;
+  DateTime? _sessionStartTime;
   // Map of groupId -> total sets defined on the group container
   final Map<int, int> _groupSetsById = {};
   
@@ -115,6 +117,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
       if (session != null) {
         final end = session.endTime;
         final start = session.startTime;
+        _sessionStartTime = start;
         if (end != null) {
           final diff = end.difference(start).inSeconds;
           if (diff > 0) {
@@ -122,6 +125,10 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
               _initialElapsedSeconds = diff;
             });
           }
+          // We have a prior checkpoint saved (session resumed)
+          _hasCheckpoint = true;
+        } else {
+          _hasCheckpoint = false;
         }
       }
     } catch (_) {
@@ -129,7 +136,17 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     }
   }
 
-  void _startWorkout() {
+  Future<void> _startWorkout() async {
+    // If this is the first start (no prior checkpoint), ensure DB start_time begins now
+    if (!_hasCheckpoint) {
+      try {
+        final now = DateTime.now();
+        await _workoutService.resetWorkoutSessionStartTime(widget.sessionId);
+        _sessionStartTime = now;
+      } catch (_) {
+        // Non-fatal: continue starting the workout even if DB update fails
+      }
+    }
     setState(() {
       _state = WorkoutState.active;
       _workoutStopwatch.start();
@@ -289,7 +306,11 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
 
   Future<void> _completeWorkout() async {
     try {
-      await _workoutService.completeWorkoutSession(widget.sessionId);
+      // Compute endTime to exactly match displayed duration
+      final displayedSeconds = _initialElapsedSeconds + _workoutStopwatch.elapsed.inSeconds;
+      final start = _sessionStartTime ?? DateTime.now();
+      final endTime = start.add(Duration(seconds: displayedSeconds));
+      await _workoutService.completeWorkoutSessionWithEnd(widget.sessionId, endTime);
       if (!mounted) return;
       showDialog(
         context: context,

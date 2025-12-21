@@ -48,7 +48,7 @@ class Exercise {
       name: map['name'] as String,
       sets: map['sets'] as int,
       reps: map['reps'] as int,
-      weight: map['weight'] as double?,
+      weight: (map['weight'] as num?)?.toDouble(),
       notes: map['notes'] as String?,
       orderIndex: map['order_index'] as int,
       isGroup: ((map['is_group'] ?? 0) as int) == 1,

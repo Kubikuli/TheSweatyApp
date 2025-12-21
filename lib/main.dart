@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'screens/main_screen.dart';
 import 'screens/statistics_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/backup_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -35,6 +36,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/statistics': (context) => const StatisticsScreen(),
         '/settings': (context) => const SettingsScreen(),
+        '/backup': (context) => const BackupScreen(),
       },
     );
   }
