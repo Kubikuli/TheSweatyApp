@@ -1,9 +1,9 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import '../services/backup_service.dart';
 
 class BackupScreen extends StatefulWidget {
@@ -28,13 +28,6 @@ class _BackupScreenState extends State<BackupScreen> {
 
   Future<void> _exportBackup() async {
     final suggestedName = 'workout_backup_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json';
-    final downloadsDir = await getDownloadsDirectory();
-    if (downloadsDir == null) {
-      _showSnack('Cannot find downloads folder on this device.');
-      return;
-    }
-
-    final path = p.join(downloadsDir.path, suggestedName);
 
     setState(() {
       _isBusy = true;
@@ -42,14 +35,29 @@ class _BackupScreenState extends State<BackupScreen> {
     });
 
     try {
-      await _backupService.exportToFile(
-        path,
+      final payload = await _backupService.buildBackupPayload(
         includeWorkouts: _exportWorkouts,
         includeHistory: _exportHistory,
       );
+      final bytes = Uint8List.fromList(utf8.encode(jsonEncode(payload)));
+
+      final savedPath = await FileSaver.instance.saveFile(
+        name: suggestedName,
+        bytes: bytes,
+        ext: 'json',
+        mimeType: MimeType.json,
+      );
+
       if (!mounted) return;
-      _status = 'Exported to $path';
-      _showSnack('Data exported to Downloads folder');
+
+      if (savedPath.isEmpty) {
+        _status = 'Export failed';
+        _showSnack('Export failed: could not save file');
+        return;
+      }
+
+      _status = 'Exported to $savedPath';
+      _showSnack('Data exported to device Downloads folder');
     } catch (e) {
       if (!mounted) return;
       _status = 'Export failed';
@@ -176,9 +184,9 @@ class _BackupScreenState extends State<BackupScreen> {
                 children: [
                   const Text('What is included:'),
                   const SizedBox(height: 8),
-                  const Text('• Workouts and exercises (if selected)'),
-                  const Text('• Workout history (if selected)'),
-                  const Text('• Timer history (if selected)'),
+                  const Text('• 1. All the workout sets with exercises and details'),
+                  const Text('• 2. Workout history and past timers'),
+                  const Text('• 3. EVERYTHING'),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.ios_share),
@@ -212,7 +220,7 @@ class _BackupScreenState extends State<BackupScreen> {
                         ? 'Only history will be replaced. Workouts stay unchanged.'
                         : _importScope == _BackupScope.workoutsOnly
                             ? 'Workouts will be merged (no deletion). History stays unchanged.'
-                            : 'Everything will be replaced (workouts, exercises, history).',
+                            : 'Everything will be replaced (workouts, timers, history).',
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
@@ -273,7 +281,7 @@ class _ScopeSelector extends StatelessWidget {
         ),
         RadioListTile<_BackupScope>(
           title: const Text('Workout presets only'),
-          subtitle: const Text('Workouts and exercises'),
+          subtitle: const Text('Workout presets'),
           value: _BackupScope.workoutsOnly,
           groupValue: value,
           onChanged: (v) {
@@ -282,7 +290,7 @@ class _ScopeSelector extends StatelessWidget {
         ),
         RadioListTile<_BackupScope>(
           title: const Text('Everything'),
-          subtitle: const Text('Workouts, exercises, and history'),
+          subtitle: const Text('Workout presets + history'),
           value: _BackupScope.everything,
           groupValue: value,
           onChanged: (v) {

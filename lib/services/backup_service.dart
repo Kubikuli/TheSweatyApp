@@ -123,9 +123,14 @@ class BackupService {
           .toList();
     }
 
+    final importingPresetsOnly = importWorkouts && !importHistory;
+
     final workouts = importWorkouts
-        ? _asMapList(payload['workouts']).map((map) => Workout.fromMap(map)).toList()
-        : <Workout>[];
+      ? _asMapList(payload['workouts'])
+        .map((map) => Workout.fromMap(map))
+        .map((workout) => importingPresetsOnly ? workout.copyWith(name: '_${workout.name}') : workout)
+        .toList()
+      : <Workout>[];
     final exercises = importWorkouts
         ? _asMapList(payload['exercises']).map((map) => Exercise.fromMap(map)).toList()
         : <Exercise>[];
@@ -142,28 +147,83 @@ class BackupService {
         await txn.delete('timer_sessions');
       }
 
-      // Avoid clearing workouts when history is not being replaced to prevent
-      // unintended cascade deletes of history. When history is also cleared,
-      // it is safe to clear workouts.
-      if (clearWorkouts && importWorkouts && clearHistory && importHistory) {
+      if (clearWorkouts && importWorkouts) {
         await txn.delete('exercises');
         await txn.delete('workouts');
       }
 
-      for (final workout in workouts) {
-        await txn.insert(
-          'workouts',
-          workout.toMap(),
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
+      if (importWorkouts) {
+        if (clearWorkouts) {
+          for (final workout in workouts) {
+            await txn.insert(
+              'workouts',
+              workout.toMap(),
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
 
-      for (final exercise in exercises) {
-        await txn.insert(
-          'exercises',
-          exercise.toMap(),
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+          for (final exercise in exercises) {
+            await txn.insert(
+              'exercises',
+              exercise.toMap(),
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
+        } else {
+          // Merge mode: keep existing workouts and insert imported ones with new IDs
+          final Map<int, int> workoutIdMap = {};
+          for (final workout in workouts) {
+            final map = Map<String, dynamic>.from(workout.toMap());
+            final oldId = map['id'] as int?;
+            map.remove('id');
+            final newId = await txn.insert('workouts', map);
+            if (oldId != null) {
+              workoutIdMap[oldId] = newId;
+            }
+          }
+
+          final Map<int, int> exerciseIdMap = {};
+          final List<Map<String, int>> parentUpdates = [];
+
+          for (final exercise in exercises) {
+            final map = Map<String, dynamic>.from(exercise.toMap());
+            final oldId = map['id'] as int?;
+            final oldParentId = map['parent_group_id'] as int?;
+            final oldWorkoutId = map['workout_id'] as int?;
+
+            final newWorkoutId = oldWorkoutId != null ? workoutIdMap[oldWorkoutId] : null;
+            if (newWorkoutId == null) {
+              // Skip orphaned exercise if its workout failed to insert
+              continue;
+            }
+
+            map
+              ..remove('id')
+              ..['workout_id'] = newWorkoutId
+              ..['parent_group_id'] = null;
+
+            final newId = await txn.insert('exercises', map);
+
+            if (oldId != null) {
+              exerciseIdMap[oldId] = newId;
+            }
+            if (oldParentId != null) {
+              parentUpdates.add({'newId': newId, 'oldParentId': oldParentId});
+            }
+          }
+
+          for (final update in parentUpdates) {
+            final mappedParentId = exerciseIdMap[update['oldParentId']!];
+            if (mappedParentId != null) {
+              await txn.update(
+                'exercises',
+                {'parent_group_id': mappedParentId},
+                where: 'id = ?',
+                whereArgs: [update['newId']],
+              );
+            }
+          }
+        }
       }
 
       for (final session in workoutSessions) {

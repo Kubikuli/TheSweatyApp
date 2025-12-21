@@ -26,7 +26,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         brightness: Brightness.dark,
         colorScheme: const ColorScheme.dark(
-          primary: Colors.deepPurple,
+          primary: Colors.blueAccent,
           surface: Color(0xFF121212),
         ),
         scaffoldBackgroundColor: const Color(0xFF0F0F0F),

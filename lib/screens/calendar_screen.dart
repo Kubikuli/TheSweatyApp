@@ -167,7 +167,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              const SizedBox(height: 25),
+              const SizedBox(height: 15),
               // Week range header
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -194,14 +194,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
 
               // Days list styled like mockup
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
                         itemCount: 7,
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
@@ -245,7 +245,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             decoration: BoxDecoration(
                               color: bg,
                               borderRadius: BorderRadius.circular(16),
-                              border: isToday ? Border.all(color: const Color.fromARGB(255, 66, 137, 223), width: 2) : null,
+                                border: isToday
+                                  ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
+                                  : null,
                             ),
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             child: Row(

@@ -24,8 +24,10 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
     _loadWorkouts();
   }
 
-  Future<void> _loadWorkouts() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadWorkouts({bool showLoader = true}) async {
+    if (showLoader) {
+      setState(() => _isLoading = true);
+    }
     try {
       final workouts = await _workoutService.getAllWorkouts();
       if (!mounted) return;
@@ -39,8 +41,14 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
       );
     } finally {
       if (!mounted) return;
-      setState(() => _isLoading = false);
+      if (showLoader) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
+
+  Future<void> _handleRefresh() async {
+    await _loadWorkouts(showLoader: false);
   }
 
   Future<void> _copyWorkout(Workout source) async {
@@ -212,77 +220,89 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _workouts.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.fitness_center,
-                        size: 80,
-                        color: Colors.grey.shade400,
-                      ),
-                      const SizedBox(height: 20),
-                      const Text(
-                        'No workouts yet',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Create your first workout routine',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16.0),
-                  itemCount: _workouts.length,
-                  itemBuilder: (context, index) {
-                    final workout = _workouts[index];
-                    final workoutColor = workout.colorHex != null
-                        ? Color(int.parse(workout.colorHex!.substring(1), radix: 16))
-                        : null;
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12.0),
-                      color: workoutColor,
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: workoutColor != null
-                              ? Colors.white.withOpacity(0.3)
-                              : null,
-                          child: const Icon(Icons.fitness_center),
-                        ),
-                        title: Text(
-                          workout.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
+          : RefreshIndicator(
+              onRefresh: _handleRefresh,
+              child: _workouts.isEmpty
+                  ? LayoutBuilder(
+                      builder: (context, constraints) => SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.fitness_center,
+                                  size: 80,
+                                  color: Colors.grey.shade400,
+                                ),
+                                const SizedBox(height: 20),
+                                const Text(
+                                  'No workouts yet',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                const Text(
+                                  'Create your first workout routine',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        subtitle: workout.description != null
-                            ? Text(
-                                workout.description!,
-                                style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withOpacity(0.7),
-                                ),
-                              )
-                            : null,
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => _viewWorkout(workout),
-                        onLongPress: () => _showWorkoutActions(workout),
                       ),
-                    );
-                  },
-                ),
+                    )
+                  : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16.0),
+                      itemCount: _workouts.length,
+                      itemBuilder: (context, index) {
+                        final workout = _workouts[index];
+                        final workoutColor = workout.colorHex != null
+                            ? Color(int.parse(workout.colorHex!.substring(1), radix: 16))
+                            : null;
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12.0),
+                          color: workoutColor,
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: workoutColor != null
+                                  ? Colors.white.withOpacity(0.3)
+                                  : null,
+                              child: const Icon(Icons.fitness_center),
+                            ),
+                            title: Text(
+                              workout.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: workout.description != null
+                                ? Text(
+                                    workout.description!,
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withOpacity(0.7),
+                                    ),
+                                  )
+                                : null,
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => _viewWorkout(workout),
+                            onLongPress: () => _showWorkoutActions(workout),
+                          ),
+                        );
+                      },
+                    ),
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: _createWorkout,
         backgroundColor: const Color(0xFF3A3A3A),

@@ -237,6 +237,7 @@ class _MonthlyCalendarScreenState extends State<MonthlyCalendarScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 25),
           ],
         ),
       ),

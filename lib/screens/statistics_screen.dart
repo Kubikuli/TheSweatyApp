@@ -93,6 +93,15 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final sortedWorkoutEntries = _perWorkoutCounts.entries.toList()
+      ..sort((a, b) {
+        final orderCompare = a.key.sortOrder.compareTo(b.key.sortOrder);
+        if (orderCompare != 0) return orderCompare;
+        final completedCompare = b.value.compareTo(a.value);
+        if (completedCompare != 0) return completedCompare;
+        return a.key.name.compareTo(b.key.name);
+      });
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Statistics'),
@@ -137,7 +146,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                   const SizedBox(height: 24),
                   Text('By Workout', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
-                  ..._perWorkoutCounts.entries.map((e) => ListTile(
+                  ...sortedWorkoutEntries.map((e) => ListTile(
                         leading: const Icon(Icons.fitness_center),
                         title: Text(e.key.name),
                         subtitle: Text('Completed: ${e.value} • Avg duration: ${_formatDuration(_perWorkoutAvgDurations[e.key] ?? Duration.zero)}'),
