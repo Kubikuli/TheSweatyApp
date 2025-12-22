@@ -21,10 +21,9 @@ class _BackupScreenState extends State<BackupScreen> {
   _BackupScope _exportScope = _BackupScope.everything;
   _BackupScope _importScope = _BackupScope.everything;
 
-  bool get _exportWorkouts => _exportScope != _BackupScope.historyOnly;
-  bool get _exportHistory => _exportScope != _BackupScope.workoutsOnly;
-  bool get _importWorkouts => _importScope != _BackupScope.historyOnly;
-  bool get _importHistory => _importScope != _BackupScope.workoutsOnly;
+  bool get _exportIncludeHistory => _exportScope == _BackupScope.everything;
+  bool get _importWorkouts => true;
+  bool get _importHistory => _importScope == _BackupScope.everything;
 
   Future<void> _exportBackup() async {
     final suggestedName = 'workout_backup_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json';
@@ -36,8 +35,8 @@ class _BackupScreenState extends State<BackupScreen> {
 
     try {
       final payload = await _backupService.buildBackupPayload(
-        includeWorkouts: _exportWorkouts,
-        includeHistory: _exportHistory,
+        includeWorkouts: true,
+        includeHistory: _exportIncludeHistory,
       );
       final bytes = Uint8List.fromList(utf8.encode(jsonEncode(payload)));
 
@@ -82,11 +81,9 @@ class _BackupScreenState extends State<BackupScreen> {
     final path = picked.files.single.path;
     final bytes = picked.files.single.bytes;
 
-    final scopeDescription = _importScope == _BackupScope.historyOnly
-        ? 'Only history will be replaced (timer + workout sessions). Workouts stay unchanged.'
-        : _importScope == _BackupScope.workoutsOnly
-            ? 'Workouts will be merged (no deletion). History stays unchanged.'
-            : 'Everything will be replaced: workouts, exercises, and history.';
+    final scopeDescription = _importScope == _BackupScope.workoutsOnly
+      ? 'Workouts will be merged (no deletion). History stays unchanged.'
+      : 'Everything will be replaced: workouts, exercises, and history.';
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -182,11 +179,11 @@ class _BackupScreenState extends State<BackupScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('What is included:'),
-                  const SizedBox(height: 8),
-                  const Text('• 1. All the workout sets with exercises and details'),
-                  const Text('• 2. Workout history and past timers'),
-                  const Text('• 3. EVERYTHING'),
+                  Text(
+                    _exportScope == _BackupScope.workoutsOnly
+                        ? 'Only workout presets will be exported. History is not included.'
+                        : 'Everything will be exported: workout presets and workout + timer history.',
+                  ),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.ios_share),
@@ -216,11 +213,9 @@ class _BackupScreenState extends State<BackupScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _importScope == _BackupScope.historyOnly
-                        ? 'Only history will be replaced. Workouts stay unchanged.'
-                        : _importScope == _BackupScope.workoutsOnly
-                            ? 'Workouts will be merged (no deletion). History stays unchanged.'
-                            : 'Everything will be replaced (workouts, timers, history).',
+                    _importScope == _BackupScope.workoutsOnly
+                      ? 'Workouts will be added (no deletion). History stays unchanged.'
+                      : 'Everything will be replaced (workouts, timers, history).',
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
@@ -251,7 +246,7 @@ class _BackupScreenState extends State<BackupScreen> {
   }
 }
 
-enum _BackupScope { historyOnly, workoutsOnly, everything }
+enum _BackupScope { workoutsOnly, everything }
 
 class _ScopeSelector extends StatelessWidget {
   final String title;
@@ -270,15 +265,6 @@ class _ScopeSelector extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        RadioListTile<_BackupScope>(
-          title: const Text('History only'),
-          subtitle: const Text('Workout + timer history'),
-          value: _BackupScope.historyOnly,
-          groupValue: value,
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
-        ),
         RadioListTile<_BackupScope>(
           title: const Text('Workout presets only'),
           subtitle: const Text('Workout presets'),

@@ -18,34 +18,45 @@ class WorkoutDetailScreen extends StatefulWidget {
 
 class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   final WorkoutService _workoutService = WorkoutService();
+  late Workout _workout;
   List<Exercise> _exercises = [];
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
+    _workout = widget.workout;
     _loadExercises();
   }
 
   Future<void> _loadExercises() async {
     setState(() => _isLoading = true);
     try {
-      final exercises = await _workoutService.getExercisesByWorkout(widget.workout.id!);
+      final exercises = await _workoutService.getExercisesByWorkout(_workout.id!);
       setState(() => _exercises = exercises);
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
+  Future<void> _refreshWorkout() async {
+    final latest = await _workoutService.getWorkout(_workout.id!);
+    if (!mounted || latest == null) return;
+    setState(() => _workout = latest);
+  }
+
   void _editWorkout() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CreateEditWorkoutScreen(workout: widget.workout),
+        builder: (context) => CreateEditWorkoutScreen(workout: _workout),
       ),
-    ).then((_) {
+    ).then((updated) async {
       if (!mounted) return;
-      Navigator.pop(context);
+      if (updated == true) {
+        await _refreshWorkout();
+        await _loadExercises();
+      }
     });
   }
 
@@ -69,20 +80,20 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
     );
 
     if (confirmed == true) {
-      await _workoutService.deleteWorkout(widget.workout.id!);
+      await _workoutService.deleteWorkout(_workout.id!);
       if (mounted) Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final workoutColor = widget.workout.colorHex != null
-        ? Color(int.parse(widget.workout.colorHex!.substring(1), radix: 16))
+    final workoutColor = _workout.colorHex != null
+      ? Color(int.parse(_workout.colorHex!.substring(1), radix: 16))
         : null;
     
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.workout.name),
+        title: Text(_workout.name),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
@@ -99,11 +110,11 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (widget.workout.description != null)
+                if (_workout.description != null)
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Text(
-                      widget.workout.description!,
+                      _workout.description!,
                       style: const TextStyle(
                         fontSize: 16,
                         color: Colors.grey,
@@ -117,7 +128,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                       Icon(Icons.timer_outlined, size: 16, color: Colors.grey.shade600),
                       const SizedBox(width: 4),
                       Text(
-                        'Rest: ${widget.workout.restBetweenSets}s between sets, ${widget.workout.restBetweenExercises}s between exercises',
+                        'Rest: ${_workout.restBetweenSets}s between sets, ${_workout.restBetweenExercises}s between exercises',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey.shade600,
@@ -256,7 +267,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                             if (isSubExercise)
                                               Text(
                                                 '${exercise.reps} reps'
-                                                '${exercise.weight != null ? ' @ ${exercise.weight}kg' : ''}'
+                                                '${exercise.weight != null ? ' | ${exercise.weight}kg' : ''}'
                                                 '${exercise.perHand ? ' (each hand)' : ''}',
                                                 style: TextStyle(
                                                   color: Colors.grey.shade600,
@@ -266,7 +277,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                             else if (!isGroup)
                                               Text(
                                                 '${exercise.sets} sets × ${exercise.reps} reps'
-                                                '${exercise.weight != null ? ' @ ${exercise.weight}kg' : ''}'
+                                                '${exercise.weight != null ? ' | ${exercise.weight}kg' : ''}'
                                                 '${exercise.perHand ? ' (each hand)' : ''}',
                                                 style: TextStyle(
                                                   color: Colors.grey.shade600,

@@ -33,6 +33,11 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
   final Map<int, TextEditingController> _exerciseNameControllers = {};
   final Set<int> _expandedGroups = {}; // Track which groups are expanded
   bool _suppressExitConfirm = false; // allow silent pop after save
+  bool _hasUnsavedChanges = false;
+
+  void _markChanged() {
+    _hasUnsavedChanges = true;
+  }
 
   @override
   void initState() {
@@ -50,6 +55,12 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
       _restBetweenSetsController.text = '45';
       _restBetweenExercisesController.text = '90';
     }
+
+    _nameController.addListener(_markChanged);
+    _descriptionController.addListener(_markChanged);
+    _sortOrderController.addListener(_markChanged);
+    _restBetweenSetsController.addListener(_markChanged);
+    _restBetweenExercisesController.addListener(_markChanged);
   }
 
   @override
@@ -96,7 +107,10 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
             ),
             ElevatedButton(
               onPressed: () {
-                setState(() => _selectedColorHex = _colorToHex(temp));
+                setState(() {
+                  _selectedColorHex = _colorToHex(temp);
+                  _hasUnsavedChanges = true;
+                });
                 Navigator.pop(context);
               },
               child: const Text('Use Color'),
@@ -229,8 +243,9 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
       }
 
       if (mounted) {
+        _hasUnsavedChanges = false;
         _suppressExitConfirm = true;
-        Navigator.pop(context);
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
@@ -257,6 +272,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
       _exercises.add(newExercise);
       _editingExerciseIndex = _exercises.length - 1;
       _exerciseNameControllers[_exercises.length - 1] = TextEditingController(text: newExercise.name);
+      _hasUnsavedChanges = true;
     });
   }
 
@@ -303,6 +319,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
       _exerciseNameControllers.clear();
       _exerciseNameControllers.addAll(tempControllers);
       _editingExerciseIndex = insertIndex;
+      _hasUnsavedChanges = true;
     });
   }
 
@@ -333,6 +350,11 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text(
+                    currentEx.name,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       const Text('Group', style: TextStyle(fontSize: 16)),
@@ -343,6 +365,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                           setSheetState(() {});
                           setState(() {
                             _exercises[index] = currentEx.copyWith(isGroup: v ?? false);
+                            _hasUnsavedChanges = true;
                           });
                         },
                       ),
@@ -364,6 +387,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                           setSheetState(() {});
                           setState(() {
                             _exercises[index] = currentEx.copyWith(perHand: v ?? false);
+                            _hasUnsavedChanges = true;
                           });
                         },
                       ),
@@ -390,7 +414,10 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                           ),
                           onChanged: (v) {
                             final w = double.tryParse(v);
-                            setState(() => _exercises[index] = _exercises[index].copyWith(weight: w));
+                            setState(() {
+                              _exercises[index] = _exercises[index].copyWith(weight: w);
+                              _hasUnsavedChanges = true;
+                            });
                           },
                         ),
                       ),
@@ -424,7 +451,10 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                           ),
                           onChanged: (v) {
                             final r = int.tryParse(v) ?? _exercises[index].reps;
-                            setState(() => _exercises[index] = _exercises[index].copyWith(reps: r));
+                            setState(() {
+                              _exercises[index] = _exercises[index].copyWith(reps: r);
+                              _hasUnsavedChanges = true;
+                            });
                           },
                         ),
                       ),
@@ -458,6 +488,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
           _suppressExitConfirm = false;
           return true;
         }
+        if (!_hasUnsavedChanges) return true;
         final shouldLeave = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -533,6 +564,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                       }
                       return null;
                     },
+                    onChanged: (_) => _hasUnsavedChanges = true,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -542,6 +574,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                       border: OutlineInputBorder(),
                     ),
                     maxLines: 3,
+                    onChanged: (_) => _hasUnsavedChanges = true,
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -563,6 +596,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                             }
                             return null;
                           },
+                          onChanged: (_) => _hasUnsavedChanges = true,
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -583,6 +617,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                             }
                             return null;
                           },
+                          onChanged: (_) => _hasUnsavedChanges = true,
                         ),
                       ),
                     ],
@@ -608,7 +643,10 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                                 ...presetHex.map<Widget>((hex) {
                                   final isSelected = _selectedColorHex == hex;
                                   return GestureDetector(
-                                    onTap: () => setState(() => _selectedColorHex = hex),
+                                    onTap: () => setState(() {
+                                      _selectedColorHex = hex;
+                                      _hasUnsavedChanges = true;
+                                    }),
                                     child: Container(
                                       width: 40,
                                       height: 40,
@@ -684,6 +722,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                             }
                             return null;
                           },
+                          onChanged: (_) => _hasUnsavedChanges = true,
                         ),
                       ),
                     ],
@@ -791,15 +830,18 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                                                     setState(() {
                                                       _exercises[index] = ex.copyWith(name: value.trim());
                                                       _editingExerciseIndex = null;
+                                                      _hasUnsavedChanges = true;
                                                     });
                                                   }
                                                 },
+                                                onChanged: (_) => _hasUnsavedChanges = true,
                                                 onTapOutside: (_) {
                                                   final value = _exerciseNameControllers[index]!.text.trim();
                                                   if (value.isNotEmpty) {
                                                     setState(() {
                                                       _exercises[index] = ex.copyWith(name: value);
                                                       _editingExerciseIndex = null;
+                                                      _hasUnsavedChanges = true;
                                                     });
                                                   }
                                                 },
@@ -855,6 +897,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                                                 if (_editingExerciseIndex == index) {
                                                   _editingExerciseIndex = null;
                                                 }
+                                                _hasUnsavedChanges = true;
                                               } else {
                                                 // Decrease sets and propagate to group children if this is a group
                                                 final newSets = ex.sets - 1;
@@ -867,6 +910,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                                                     }
                                                   }
                                                 }
+                                                _hasUnsavedChanges = true;
                                               }
                                             });
                                           },
@@ -890,6 +934,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                                                   }
                                                 }
                                               }
+                                              _hasUnsavedChanges = true;
                                             });
                                           },
                                           icon: const Icon(Icons.add),
@@ -910,6 +955,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                                               if (_editingExerciseIndex == index) {
                                                 _editingExerciseIndex = null;
                                               }
+                                              _hasUnsavedChanges = true;
                                             });
                                           },
                                           icon: const Icon(Icons.delete_outline, size: 20),

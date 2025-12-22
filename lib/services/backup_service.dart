@@ -115,7 +115,7 @@ class BackupService {
   }) async {
     final db = await _db.database;
 
-    List<Map<String, dynamic>> _asMapList(dynamic value) {
+    List<Map<String, dynamic>> asMapList(dynamic value) {
       if (value is! List) return <Map<String, dynamic>>[];
       return value
           .whereType<dynamic>()
@@ -126,19 +126,19 @@ class BackupService {
     final importingPresetsOnly = importWorkouts && !importHistory;
 
     final workouts = importWorkouts
-      ? _asMapList(payload['workouts'])
+      ? asMapList(payload['workouts'])
         .map((map) => Workout.fromMap(map))
         .map((workout) => importingPresetsOnly ? workout.copyWith(name: '_${workout.name}') : workout)
         .toList()
       : <Workout>[];
     final exercises = importWorkouts
-        ? _asMapList(payload['exercises']).map((map) => Exercise.fromMap(map)).toList()
+        ? asMapList(payload['exercises']).map((map) => Exercise.fromMap(map)).toList()
         : <Exercise>[];
     final workoutSessions = importHistory
-        ? _asMapList(payload['workout_sessions']).map((map) => WorkoutSession.fromMap(map)).toList()
+        ? asMapList(payload['workout_sessions']).map((map) => WorkoutSession.fromMap(map)).toList()
         : <WorkoutSession>[];
     final timerSessions = importHistory
-        ? _asMapList(payload['timer_sessions']).map((map) => TimerSession.fromMap(map)).toList()
+        ? asMapList(payload['timer_sessions']).map((map) => TimerSession.fromMap(map)).toList()
         : <TimerSession>[];
 
     await db.transaction((txn) async {

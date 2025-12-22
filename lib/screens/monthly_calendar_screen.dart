@@ -18,6 +18,7 @@ class _MonthlyCalendarScreenState extends State<MonthlyCalendarScreen> {
   List<Workout> _workouts = [];
   bool _isLoading = false;
   static const double _swipeVelocityThreshold = 300; // px/s threshold for swipe navigation
+  double _slideOffset = 0; // 1 -> new month slides in from right, -1 -> from left
 
   @override
   void initState() {
@@ -48,26 +49,29 @@ class _MonthlyCalendarScreenState extends State<MonthlyCalendarScreen> {
   }
 
   void _previousMonth() {
-    setState(() {
-      _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1, 1);
-    });
-    _loadSessions();
+    _setMonth(DateTime(_selectedMonth.year, _selectedMonth.month - 1, 1), -1);
   }
 
   void _nextMonth() {
-    setState(() {
-      _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 1);
-    });
-    _loadSessions();
+    _setMonth(DateTime(_selectedMonth.year, _selectedMonth.month + 1, 1), 1);
   }
 
   void _goToCurrentMonth() {
     final now = DateTime.now();
+    final target = DateTime(now.year, now.month, 1);
+    final isForward = target.isAfter(_selectedMonth);
+    _setMonth(target, isForward ? 1 : -1);
+  }
+
+  void _setMonth(DateTime newMonth, double slideFrom) {
     setState(() {
-      _selectedMonth = DateTime(now.year, now.month, 1);
+      _slideOffset = slideFrom;
+      _selectedMonth = newMonth;
     });
     _loadSessions();
   }
+
+  Key _monthKey(DateTime month) => ValueKey<String>('month_${month.year}_${month.month}');
 
   void _handleHorizontalSwipe(DragEndDetails details) {
     final velocityX = details.primaryVelocity ?? 0;
@@ -156,73 +160,99 @@ class _MonthlyCalendarScreenState extends State<MonthlyCalendarScreen> {
 
             // Month grid of dots colored by workout sessions, with date numbers inside
             Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final columns = 7;
-                          final spacing = 12.0;
-                          final dotSize = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
-                          // Build starting offset for first weekday
-                          final startWeekday = firstDay.weekday; // 1..7 (Mon..Sun)
-                          final totalCells = ((startWeekday - 1) + daysInMonth);
-                          final rows = (totalCells / columns).ceil();
-                          int dayIndex = 0;
-                          return Column(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            children: List.generate(rows, (row) {
-                              return Padding(
-                                padding: EdgeInsets.only(bottom: spacing),
-                                child: Row(
-                                  children: List.generate(columns, (col) {
-                                    final cellNum = row * columns + col;
-                                    if (cellNum < startWeekday - 1 || dayIndex >= daysInMonth) {
-                                      return SizedBox(
-                                        width: dotSize,
-                                        height: dotSize,
-                                      );
-                                    } else {
-                                      final day = monthDays[dayIndex++];
-                                      final sessionsForDay = _sessions.where((s) {
-                                        final d = s.startTime;
-                                        return d.year == day.year && d.month == day.month && d.day == day.day;
-                                      }).toList();
-                                      final color = dayColorFor(day, sessionsForDay);
-                                      final isToday = DateTime.now().year == day.year && DateTime.now().month == day.month && DateTime.now().day == day.day;
-                                      return Padding(
-                                        padding: EdgeInsets.only(right: col == columns - 1 ? 0 : spacing),
-                                        child: Container(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                layoutBuilder: (currentChild, previousChildren) {
+                  return Stack(
+                    children: [
+                      ...previousChildren,
+                      if (currentChild != null) currentChild,
+                    ],
+                  );
+                },
+                transitionBuilder: (child, animation) {
+                  final isIncoming = child.key == _monthKey(_selectedMonth);
+                  final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+                  final incomingTween = Tween<Offset>(begin: Offset(_slideOffset, 0), end: Offset.zero);
+                  final outgoingTween = Tween<Offset>(begin: Offset.zero, end: Offset(-_slideOffset, 0));
+                  final offsetAnimation = isIncoming ? incomingTween.animate(curved) : outgoingTween.animate(curved);
+                  return ClipRect(
+                    child: SlideTransition(
+                      position: offsetAnimation,
+                      child: child,
+                    ),
+                  );
+                },
+                child: _isLoading
+                    ? const Center(key: ValueKey('loading'), child: CircularProgressIndicator())
+                    : Padding(
+                        key: _monthKey(_selectedMonth),
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final columns = 7;
+                            final spacing = 12.0;
+                            final dotSize = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+                            final startWeekday = firstDay.weekday; // 1..7 (Mon..Sun)
+                            final totalCells = ((startWeekday - 1) + daysInMonth);
+                            final rows = (totalCells / columns).ceil();
+                            int dayIndex = 0;
+                            return Column(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: List.generate(rows, (row) {
+                                return Padding(
+                                  padding: EdgeInsets.only(bottom: spacing),
+                                  child: Row(
+                                    children: List.generate(columns, (col) {
+                                      final cellNum = row * columns + col;
+                                      if (cellNum < startWeekday - 1 || dayIndex >= daysInMonth) {
+                                        return SizedBox(
                                           width: dotSize,
                                           height: dotSize,
-                                          decoration: BoxDecoration(
-                                            color: color,
-                                            shape: BoxShape.circle,
-                                            border: isToday
-                                                ? Border.all(color: const Color.fromARGB(255, 66, 137, 223), width: 2)
-                                                : null,
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Text(
-                                            '${day.day}',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
+                                        );
+                                      } else {
+                                        final day = monthDays[dayIndex++];
+                                        final sessionsForDay = _sessions.where((s) {
+                                          final d = s.startTime;
+                                          return d.year == day.year && d.month == day.month && d.day == day.day;
+                                        }).toList();
+                                        final color = dayColorFor(day, sessionsForDay);
+                                        final isToday = DateTime.now().year == day.year && DateTime.now().month == day.month && DateTime.now().day == day.day;
+                                        return Padding(
+                                          padding: EdgeInsets.only(right: col == columns - 1 ? 0 : spacing),
+                                          child: Container(
+                                            width: dotSize,
+                                            height: dotSize,
+                                            decoration: BoxDecoration(
+                                              color: color,
+                                              shape: BoxShape.circle,
+                                              border: isToday
+                                                  ? Border.all(color: const Color.fromARGB(255, 66, 137, 223), width: 2)
+                                                  : null,
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              '${day.day}',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      );
-                                    }
-                                  }),
-                                ),
-                              );
-                            }),
-                          );
-                        },
+                                        );
+                                      }
+                                    }),
+                                  ),
+                                );
+                              }),
+                            );
+                          },
+                        ),
                       ),
-                    ),
+              ),
             ),
 
             // Total workouts between calendar and arrows
