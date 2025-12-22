@@ -207,12 +207,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   switchInCurve: Curves.easeOutCubic,
                   switchOutCurve: Curves.easeInCubic,
                   layoutBuilder: (currentChild, previousChildren) {
-                    return Stack(
-                      children: [
-                        ...previousChildren,
-                        if (currentChild != null) currentChild,
-                      ],
-                    );
+                    // Only render the current child to avoid double-visibility during transitions.
+                    return currentChild ?? const SizedBox.shrink();
                   },
                   transitionBuilder: (child, animation) {
                     final isIncoming = child.key == _weekKey(_selectedWeekStart);
@@ -222,10 +218,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     final offsetAnimation = isIncoming
                         ? incomingTween.animate(curved)
                         : outgoingTween.animate(curved);
+                    final fadeAnimation = isIncoming
+                        ? animation
+                        : Tween<double>(begin: 0.25, end: 0.0).animate(
+                            CurvedAnimation(
+                              parent: animation,
+                              curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+                            ),
+                          );
                     return ClipRect(
-                      child: SlideTransition(
-                        position: offsetAnimation,
-                        child: child,
+                      child: FadeTransition(
+                        opacity: fadeAnimation,
+                        child: SlideTransition(
+                          position: offsetAnimation,
+                          child: child,
+                        ),
                       ),
                     );
                   },
@@ -300,7 +307,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   ),
                                   const SizedBox(width: 12),
                                   SizedBox(
-                                    width: 110,
+                                    width: 105,
                                     child: Text(
                                       totalDurationSeconds > 0 ? formatLen(totalDurationSeconds) : '—',
                                       textAlign: TextAlign.right,

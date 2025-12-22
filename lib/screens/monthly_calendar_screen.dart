@@ -165,12 +165,8 @@ class _MonthlyCalendarScreenState extends State<MonthlyCalendarScreen> {
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
                 layoutBuilder: (currentChild, previousChildren) {
-                  return Stack(
-                    children: [
-                      ...previousChildren,
-                      if (currentChild != null) currentChild,
-                    ],
-                  );
+                  // Only render the current child to avoid double-visibility; outgoing animates but stays hidden.
+                  return currentChild ?? const SizedBox.shrink();
                 },
                 transitionBuilder: (child, animation) {
                   final isIncoming = child.key == _monthKey(_selectedMonth);
@@ -178,10 +174,21 @@ class _MonthlyCalendarScreenState extends State<MonthlyCalendarScreen> {
                   final incomingTween = Tween<Offset>(begin: Offset(_slideOffset, 0), end: Offset.zero);
                   final outgoingTween = Tween<Offset>(begin: Offset.zero, end: Offset(-_slideOffset, 0));
                   final offsetAnimation = isIncoming ? incomingTween.animate(curved) : outgoingTween.animate(curved);
+                  final fadeAnimation = isIncoming
+                      ? animation
+                      : Tween<double>(begin: 0.25, end: 0.0).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+                          ),
+                        );
                   return ClipRect(
-                    child: SlideTransition(
-                      position: offsetAnimation,
-                      child: child,
+                    child: FadeTransition(
+                      opacity: fadeAnimation,
+                      child: SlideTransition(
+                        position: offsetAnimation,
+                        child: child,
+                      ),
                     ),
                   );
                 },
