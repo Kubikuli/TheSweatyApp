@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/workout.dart';
 import '../models/exercise.dart';
 import '../services/workout_service.dart';
@@ -21,12 +22,24 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
   late Workout _workout;
   List<Exercise> _exercises = [];
   bool _isLoading = false;
+  String _unitSystem = 'metric';
+
+  String get _unitSuffix => _unitSystem == 'imperial' ? 'lb' : 'kg';
 
   @override
   void initState() {
     super.initState();
     _workout = widget.workout;
+    _loadUnitSystem();
     _loadExercises();
+  }
+
+  Future<void> _loadUnitSystem() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _unitSystem = prefs.getString('unit_system') ?? 'metric';
+    });
   }
 
   Future<void> _loadExercises() async {
@@ -267,7 +280,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                             if (isSubExercise)
                                               Text(
                                                 '${exercise.reps} reps'
-                                                '${exercise.weight != null ? ' | ${exercise.weight}kg' : ''}'
+                                                '${exercise.weight != null ? ' | ${exercise.weight}$_unitSuffix' : ''}'
                                                 '${exercise.perHand ? ' (each hand)' : ''}',
                                                 style: TextStyle(
                                                   color: Colors.grey.shade600,
@@ -277,7 +290,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                             else if (!isGroup)
                                               Text(
                                                 '${exercise.sets} sets × ${exercise.reps} reps'
-                                                '${exercise.weight != null ? ' | ${exercise.weight}kg' : ''}'
+                                                '${exercise.weight != null ? ' | ${exercise.weight}$_unitSuffix' : ''}'
                                                 '${exercise.perHand ? ' (each hand)' : ''}',
                                                 style: TextStyle(
                                                   color: Colors.grey.shade600,

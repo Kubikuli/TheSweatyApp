@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/workout_service.dart';
 import '../models/workout.dart';
 import '../services/timer_service.dart';
+import '../models/timer_session.dart';
 
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
@@ -14,6 +15,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   final WorkoutService _service = WorkoutService();
   final TimerService _timerService = TimerService();
   bool _loading = true;
+  StatsRangeOption _range = StatsRangeOption.allTime;
   int _totalCompleted = 0;
   double _avgPerWeek = 0;
   DateTime? _lastWorkoutDate;
@@ -21,6 +23,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   Map<Workout, Duration> _perWorkoutAvgDurations = {};
   Duration _totalTimerDuration = Duration.zero;
   Duration _maxTimerDuration = Duration.zero;
+  DateTime? _maxTimerDate;
+  DateTimeRange? _customRange;
 
   @override
   void initState() {
@@ -34,28 +38,27 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     // Load all workouts
     final workouts = await _service.getAllWorkouts();
 
-    // Consider only sessions in the current year
     final now = DateTime.now();
-    final startOfYear = DateTime(now.year, 1, 1);
-    final sessionsThisYear = await _service.getWorkoutSessionsByDateRange(startOfYear, now);
+    final range = _rangeBounds(now);
+    final sessionsInRange = await _service.getWorkoutSessionsByDateRange(range.start, range.end);
     final timerSessions = await _timerService.getTimerSessionsByDateRange(
-      DateTime.fromMillisecondsSinceEpoch(0),
-      now,
+      range.start,
+      range.end,
     );
 
-    final completedThisYear = sessionsThisYear.where((s) => s.isCompleted && s.endTime != null).toList();
-    _totalCompleted = completedThisYear.length;
+    final completedSessions = sessionsInRange.where((s) => s.isCompleted && s.endTime != null).toList();
+    _totalCompleted = completedSessions.length;
 
-    // Average per week: divide by number of weeks since first workout of this year
-    if (completedThisYear.isNotEmpty) {
-      completedThisYear.sort((a, b) => a.endTime!.compareTo(b.endTime!));
-      final firstCompletedDate = completedThisYear.first.endTime!;
-      final days = now
+    // Average per week: divide by number of weeks since first completed workout in range
+    if (completedSessions.isNotEmpty) {
+      completedSessions.sort((a, b) => a.endTime!.compareTo(b.endTime!));
+      final firstCompletedDate = completedSessions.first.endTime!;
+      final days = range.end
           .difference(DateTime(firstCompletedDate.year, firstCompletedDate.month, firstCompletedDate.day))
           .inDays + 1;
       final int weeksInt = (days / 7.0).ceil().clamp(1, 1000000);
       _avgPerWeek = _totalCompleted / weeksInt;
-      _lastWorkoutDate = completedThisYear.last.endTime;
+      _lastWorkoutDate = completedSessions.last.endTime;
     } else {
       _avgPerWeek = 0;
       _lastWorkoutDate = null;
@@ -64,7 +67,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     // Per workout counts and average durations
     final Map<int, int> countsByWorkoutId = {};
     final Map<int, List<Duration>> durationsByWorkoutId = {};
-    for (final s in completedThisYear) {
+    for (final s in completedSessions) {
       countsByWorkoutId[s.workoutId] = (countsByWorkoutId[s.workoutId] ?? 0) + 1;
       if (s.endTime != null) {
         final duration = s.endTime!.difference(s.startTime);
@@ -81,10 +84,24 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
     // Aggregate timer stats
     final totalTimerSeconds = timerSessions.fold<int>(0, (sum, s) => sum + s.durationSeconds);
-    final maxTimerSeconds = timerSessions.fold<int>(0, (currentMax, s) =>
-        s.durationSeconds > currentMax ? s.durationSeconds : currentMax);
+    TimerSession? longestTimerSession;
+    for (final s in timerSessions) {
+      if (longestTimerSession == null ||
+          s.durationSeconds > longestTimerSession.durationSeconds ||
+          (s.durationSeconds == longestTimerSession.durationSeconds &&
+              (s.endTime ?? s.startTime)
+                  .isAfter(longestTimerSession.endTime ?? longestTimerSession.startTime))) {
+        longestTimerSession = s;
+      }
+    }
     _totalTimerDuration = Duration(seconds: totalTimerSeconds);
-    _maxTimerDuration = Duration(seconds: maxTimerSeconds);
+    if (longestTimerSession != null) {
+      _maxTimerDuration = Duration(seconds: longestTimerSession.durationSeconds);
+      _maxTimerDate = longestTimerSession.endTime ?? longestTimerSession.startTime;
+    } else {
+      _maxTimerDuration = Duration.zero;
+      _maxTimerDate = null;
+    }
 
     if (mounted) {
       setState(() => _loading = false);
@@ -114,6 +131,30 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<StatsRangeOption>(
+                        value: _range,
+                        onChanged: (value) {
+                          if (value == null) return;
+                          if (value == StatsRangeOption.custom) {
+                            _pickCustomRange();
+                            return;
+                          }
+                          setState(() => _range = value);
+                          _loadStats();
+                        },
+                        items: StatsRangeOption.values.map((opt) {
+                          return DropdownMenuItem(
+                            value: opt,
+                            child: Text(_rangeLabel(opt)),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   _StatCard(
                     title: 'Total Workouts',
                     value: '$_totalCompleted',
@@ -142,6 +183,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     title: 'Max Timer',
                     value: _formatDuration(_maxTimerDuration),
                     icon: Icons.av_timer,
+                    footer: _maxTimerDate != null ? _formatDate(_maxTimerDate!) : null,
                   ),
                   const SizedBox(height: 24),
                   Text('By Workout', style: Theme.of(context).textTheme.titleMedium),
@@ -160,7 +202,88 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   String _formatDate(DateTime dt) {
     return '${dt.day}.${dt.month}.${dt.year}';
   }
+
+  DateTimeRange _rangeBounds(DateTime now) {
+    switch (_range) {
+      case StatsRangeOption.allTime:
+        return DateTimeRange(
+          start: DateTime.fromMillisecondsSinceEpoch(0),
+          end: now,
+        );
+      case StatsRangeOption.thisYear:
+        return DateTimeRange(
+          start: DateTime(now.year, 1, 1),
+          end: now,
+        );
+      case StatsRangeOption.last90Days:
+        return DateTimeRange(
+          start: DateTime(now.year, now.month, now.day).subtract(const Duration(days: 89)),
+          end: now,
+        );
+      case StatsRangeOption.last30Days:
+        return DateTimeRange(
+          start: DateTime(now.year, now.month, now.day).subtract(const Duration(days: 29)),
+          end: now,
+        );
+      case StatsRangeOption.custom:
+        if (_customRange != null) {
+          return DateTimeRange(
+            start: _customRange!.start,
+            end: _endOfDay(_customRange!.end),
+          );
+        }
+        return DateTimeRange(
+          start: DateTime.fromMillisecondsSinceEpoch(0),
+          end: now,
+        );
+    }
+  }
+
+  String _rangeLabel(StatsRangeOption option) {
+    switch (option) {
+      case StatsRangeOption.allTime:
+        return 'All time';
+      case StatsRangeOption.thisYear:
+        return 'This year';
+      case StatsRangeOption.last90Days:
+        return 'Last 90 days';
+      case StatsRangeOption.last30Days:
+        return 'Last 30 days';
+      case StatsRangeOption.custom:
+        if (_customRange != null) {
+          return '${_formatDate(_customRange!.start)} – ${_formatDate(_customRange!.end)}';
+        }
+        return 'Custom range';
+    }
+  }
+
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
+    final initial = _customRange ??
+        DateTimeRange(
+          start: now.subtract(const Duration(days: 6)),
+          end: now,
+        );
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2000),
+      lastDate: now,
+      initialDateRange: initial,
+    );
+    if (picked == null) return;
+    setState(() {
+      _customRange = picked;
+      _range = StatsRangeOption.custom;
+    });
+    _loadStats();
+  }
+
+  DateTime _endOfDay(DateTime d) {
+    return DateTime(d.year, d.month, d.day, 23, 59, 59, 999);
+  }
 }
+
+enum StatsRangeOption { allTime, thisYear, last90Days, last30Days, custom }
 
 Duration _averageDuration(List<Duration> durations) {
   if (durations.isEmpty) return Duration.zero;
@@ -186,10 +309,12 @@ class _StatCard extends StatelessWidget {
   final String title;
   final String value;
   final IconData icon;
-  const _StatCard({required this.title, required this.value, required this.icon});
+  final String? footer;
+  const _StatCard({required this.title, required this.value, required this.icon, this.footer});
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -198,6 +323,7 @@ class _StatCard extends StatelessWidget {
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 28),
           const SizedBox(width: 12),
@@ -205,12 +331,25 @@ class _StatCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: Theme.of(context).textTheme.bodyMedium),
+                Text(title, style: textTheme.bodyMedium),
                 const SizedBox(height: 6),
-                Text(value, style: Theme.of(context).textTheme.headlineSmall),
+                Text(value, style: textTheme.headlineSmall),
               ],
             ),
           ),
+          if (footer != null) ...[
+            const SizedBox(width: 8),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  footer!,
+                  style: textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

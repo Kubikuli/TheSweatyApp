@@ -138,7 +138,7 @@ class _MonthlyCalendarScreenState extends State<MonthlyCalendarScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.chevron_left, size: 32),
+                    icon: const Icon(Icons.chevron_left, size: 40),
                     onPressed: _previousMonth,
                     tooltip: 'Previous month',
                   ),
@@ -146,135 +146,141 @@ class _MonthlyCalendarScreenState extends State<MonthlyCalendarScreen> {
                     child: Text(
                       DateFormat('MMMM yyyy').format(_selectedMonth),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.chevron_right, size: 32),
+                    icon: const Icon(Icons.chevron_right, size: 40),
                     onPressed: _nextMonth,
                     tooltip: 'Next month',
                   ),
                 ],
               ),
             ),
-
-            // Month grid of dots colored by workout sessions, with date numbers inside
             Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 260),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                layoutBuilder: (currentChild, previousChildren) {
-                  // Only render the current child to avoid double-visibility; outgoing animates but stays hidden.
-                  return currentChild ?? const SizedBox.shrink();
-                },
-                transitionBuilder: (child, animation) {
-                  final isIncoming = child.key == _monthKey(_selectedMonth);
-                  final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
-                  final incomingTween = Tween<Offset>(begin: Offset(_slideOffset, 0), end: Offset.zero);
-                  final outgoingTween = Tween<Offset>(begin: Offset.zero, end: Offset(-_slideOffset, 0));
-                  final offsetAnimation = isIncoming ? incomingTween.animate(curved) : outgoingTween.animate(curved);
-                  final fadeAnimation = isIncoming
-                      ? animation
-                      : Tween<double>(begin: 0.25, end: 0.0).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  children: [
+                    // Month grid of dots colored by workout sessions, with date numbers inside
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      layoutBuilder: (currentChild, previousChildren) {
+                        // Only render the current child to avoid double-visibility; outgoing animates but stays hidden.
+                        return currentChild ?? const SizedBox.shrink();
+                      },
+                      transitionBuilder: (child, animation) {
+                        final isIncoming = child.key == _monthKey(_selectedMonth);
+                        final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+                        final incomingTween = Tween<Offset>(begin: Offset(_slideOffset, 0), end: Offset.zero);
+                        final outgoingTween = Tween<Offset>(begin: Offset.zero, end: Offset(-_slideOffset, 0));
+                        final offsetAnimation = isIncoming ? incomingTween.animate(curved) : outgoingTween.animate(curved);
+                        final fadeAnimation = isIncoming
+                            ? animation
+                            : Tween<double>(begin: 0.25, end: 0.0).animate(
+                                CurvedAnimation(
+                                  parent: animation,
+                                  curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+                                ),
+                              );
+                        return ClipRect(
+                          child: FadeTransition(
+                            opacity: fadeAnimation,
+                            child: SlideTransition(
+                              position: offsetAnimation,
+                              child: child,
+                            ),
                           ),
                         );
-                  return ClipRect(
-                    child: FadeTransition(
-                      opacity: fadeAnimation,
-                      child: SlideTransition(
-                        position: offsetAnimation,
-                        child: child,
-                      ),
-                    ),
-                  );
-                },
-                child: _isLoading
-                    ? const Center(key: ValueKey('loading'), child: CircularProgressIndicator())
-                    : Padding(
-                        key: _monthKey(_selectedMonth),
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final columns = 7;
-                            final spacing = 12.0;
-                            final dotSize = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
-                            final startWeekday = firstDay.weekday; // 1..7 (Mon..Sun)
-                            final totalCells = ((startWeekday - 1) + daysInMonth);
-                            final rows = (totalCells / columns).ceil();
-                            int dayIndex = 0;
-                            return Column(
-                              mainAxisAlignment: MainAxisAlignment.start,
-                              children: List.generate(rows, (row) {
-                                return Padding(
-                                  padding: EdgeInsets.only(bottom: spacing),
-                                  child: Row(
-                                    children: List.generate(columns, (col) {
-                                      final cellNum = row * columns + col;
-                                      if (cellNum < startWeekday - 1 || dayIndex >= daysInMonth) {
-                                        return SizedBox(
-                                          width: dotSize,
-                                          height: dotSize,
-                                        );
-                                      } else {
-                                        final day = monthDays[dayIndex++];
-                                        final sessionsForDay = _sessions.where((s) {
-                                          final d = s.startTime;
-                                          return d.year == day.year && d.month == day.month && d.day == day.day;
-                                        }).toList();
-                                        final color = dayColorFor(day, sessionsForDay);
-                                        final isToday = DateTime.now().year == day.year && DateTime.now().month == day.month && DateTime.now().day == day.day;
-                                        return Padding(
-                                          padding: EdgeInsets.only(right: col == columns - 1 ? 0 : spacing),
-                                          child: Container(
-                                            width: dotSize,
-                                            height: dotSize,
-                                            decoration: BoxDecoration(
-                                              color: color,
-                                              shape: BoxShape.circle,
-                                              border: isToday
-                                                  ? Border.all(color: const Color.fromARGB(255, 66, 137, 223), width: 2)
-                                                  : null,
-                                            ),
-                                            alignment: Alignment.center,
-                                            child: Text(
-                                              '${day.day}',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      }
+                      },
+                      child: _isLoading
+                          ? const Center(key: ValueKey('loading'), child: CircularProgressIndicator())
+                          : Padding(
+                              key: _monthKey(_selectedMonth),
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final columns = 7;
+                                  final spacing = 12.0;
+                                  final dotSize = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+                                  final startWeekday = firstDay.weekday; // 1..7 (Mon..Sun)
+                                  final totalCells = ((startWeekday - 1) + daysInMonth);
+                                  final rows = (totalCells / columns).ceil();
+                                  int dayIndex = 0;
+                                  return Column(
+                                    mainAxisAlignment: MainAxisAlignment.start,
+                                    children: List.generate(rows, (row) {
+                                      return Padding(
+                                        padding: EdgeInsets.only(bottom: spacing),
+                                        child: Row(
+                                          children: List.generate(columns, (col) {
+                                            final cellNum = row * columns + col;
+                                            if (cellNum < startWeekday - 1 || dayIndex >= daysInMonth) {
+                                              return SizedBox(
+                                                width: dotSize,
+                                                height: dotSize,
+                                              );
+                                            } else {
+                                              final day = monthDays[dayIndex++];
+                                              final sessionsForDay = _sessions.where((s) {
+                                                final d = s.startTime;
+                                                return d.year == day.year && d.month == day.month && d.day == day.day;
+                                              }).toList();
+                                              final color = dayColorFor(day, sessionsForDay);
+                                              final isToday = DateTime.now().year == day.year && DateTime.now().month == day.month && DateTime.now().day == day.day;
+                                              return Padding(
+                                                padding: EdgeInsets.only(right: col == columns - 1 ? 0 : spacing),
+                                                child: Container(
+                                                  width: dotSize,
+                                                  height: dotSize,
+                                                  decoration: BoxDecoration(
+                                                    color: color,
+                                                    shape: BoxShape.circle,
+                                                    border: isToday
+                                                        ? Border.all(color: const Color.fromARGB(255, 66, 137, 223), width: 2)
+                                                        : null,
+                                                  ),
+                                                  alignment: Alignment.center,
+                                                  child: Text(
+                                                    '${day.day}',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          }),
+                                        ),
+                                      );
                                     }),
-                                  ),
-                                );
-                              }),
-                            );
-                          },
+                                  );
+                                },
+                              ),
+                            ),
+                    ),
+
+                    const SizedBox(height: 45),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                      child: Text(
+                        '${_sessions.length} total workouts',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-              ),
-            ),
-
-            // Total workouts between calendar and arrows
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
-              child: Text(
-                '${_sessions.length} total workouts',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                    ),
+                    const SizedBox(height: 25),
+                  ],
                 ),
               ),
             ),
-            const SizedBox(height: 25),
           ],
         ),
       ),

@@ -203,7 +203,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               // Days list styled like mockup
               Expanded(
                 child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 260),
+                  duration: const Duration(milliseconds: 300),
                   switchInCurve: Curves.easeOutCubic,
                   switchOutCurve: Curves.easeInCubic,
                   layoutBuilder: (currentChild, previousChildren) {

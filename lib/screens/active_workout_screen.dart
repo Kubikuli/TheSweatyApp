@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../models/workout.dart';
 import '../models/exercise.dart';
@@ -45,6 +46,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   DateTime? _sessionStartTime;
   // Map of groupId -> total sets defined on the group container
   final Map<int, int> _groupSetsById = {};
+  bool _rightHandFirst = true;
+  int _handRestSeconds = 30;
+  String _unitSystem = 'metric';
   
   // History snapshots to allow going back one step
   final List<_WorkoutSnapshot> _history = [];
@@ -54,8 +58,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     super.initState();
     // Keep the screen awake during the entire active workout flow
     WakelockPlus.enable();
-    _loadExercises();
     _loadSessionCheckpoint();
+    _loadHandSettings();
   }
 
   @override
@@ -67,6 +71,23 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     WakelockPlus.disable();
     super.dispose();
   }
+
+  Future<void> _loadHandSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _handRestSeconds = prefs.getInt('hand_rest_seconds') ?? 30;
+        _rightHandFirst = (prefs.getString('hand_order') ?? 'right_left') != 'left_right';
+        _unitSystem = prefs.getString('unit_system') ?? 'metric';
+      });
+      await _loadExercises();
+    } catch (_) {
+      // ignore and keep defaults
+      await _loadExercises();
+    }
+  }
+
+  String get _unitSuffix => _unitSystem == 'imperial' ? 'lb' : 'kg';
 
   Future<void> _loadExercises() async {
     setState(() => _isLoading = true);
@@ -89,12 +110,18 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
       
       for (final exercise in baseExercises) {
         if (exercise.perHand) {
-          // Add right hand version
-          expandedExercises.add(exercise);
-          hands.add('right');
-          // Add left hand version
-          expandedExercises.add(exercise);
-          hands.add('left');
+            // Add hand variants in preferred order
+            if (_rightHandFirst) {
+              expandedExercises.add(exercise);
+              hands.add('right');
+              expandedExercises.add(exercise);
+              hands.add('left');
+            } else {
+              expandedExercises.add(exercise);
+              hands.add('left');
+              expandedExercises.add(exercise);
+              hands.add('right');
+            }
         } else {
           // Regular exercise
           expandedExercises.add(exercise);
@@ -222,6 +249,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     final currentExercise = _exercises[_currentExerciseIndex];
     final currentHand = _exerciseHands[_currentExerciseIndex];
     final isPartOfGroup = currentExercise.parentGroupId != null;
+    final firstHand = _rightHandFirst ? 'right' : 'left';
+    final secondHand = _rightHandFirst ? 'left' : 'right';
     
     if (isPartOfGroup) {
       // For grouped exercises, cycle through all exercises in the group
@@ -250,18 +279,18 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
         }
       }
     } else if (currentHand != null) {
-      // PerHand exercise - alternate between hands
-      if (currentHand == 'right') {
-        // Move to left hand (same set number)
+      // PerHand exercise - alternate between preferred hand order
+      if (currentHand == firstHand) {
+        // Move to second hand (same set number)
         _currentExerciseIndex++;
-        _startRestTimer(widget.workout.restBetweenSets);
+        _startRestTimer(_handRestSeconds);
       } else {
-        // Just finished left hand
+        // Just finished second hand
         if (_currentSet < currentExercise.sets) {
-          // Move back to right hand for next set
+          // Move back to first hand for next set
           _currentExerciseIndex--;
           _currentSet++;
-          _startRestTimer(widget.workout.restBetweenSets);
+          _startRestTimer(_handRestSeconds);
         } else {
           // Both hands complete for all sets, move to next exercise
           _currentSet = 1; // Reset for next exercise
@@ -292,6 +321,15 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
       _restTimeRemaining = 0;
       _state = WorkoutState.active; // Always resume in active mode
     });
+  }
+
+  Future<void> _handleBackPressed() async {
+    // If there's no history (preparing or first step), treat back as cancel
+    if (_history.isEmpty || _state == WorkoutState.preparing) {
+      await _cancelWorkout();
+    } else {
+      _goBack();
+    }
   }
 
   void _moveToNextExerciseOrGroup() {
@@ -502,11 +540,11 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
           backgroundColor: Colors.black,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: (_state == WorkoutState.preparing || _history.isEmpty) ? null : _goBack,
+            onPressed: _handleBackPressed,
           ),
           title: Text(
             _state == WorkoutState.preparing 
-                ? 'Preparing for workout'
+                ? 'Prepare for workout'
                 : 'Active: ${widget.workout.name}',
             style: const TextStyle(color: Colors.white, fontSize: 16),
           ),
@@ -618,7 +656,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
-                    '${exercise.name}${hand != null ? ' ($hand)' : ''} (${exercise.sets}x)',
+                    '${exercise.name}${hand != null ? ' ($hand)' : ''} (${exercise.sets}x)'
+                    '${exercise.weight != null && exercise.weight! > 0 ? ' - ${exercise.weight!.toInt()}$_unitSuffix' : ''}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -653,6 +692,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     final currentExercise = _exercises[_currentExerciseIndex];
     final currentHand = _exerciseHands[_currentExerciseIndex];
     final isPartOfGroup = currentExercise.parentGroupId != null;
+    final firstHand = _rightHandFirst ? 'right' : 'left';
+    final secondHand = _rightHandFirst ? 'left' : 'right';
     
     // Determine what's next (simulate what _completeSet will do)
     Exercise? nextExercise;
@@ -689,15 +730,15 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
           nextSetNumber = 1;
         }
       }
-    } else if (currentHand == 'right') {
-      // After this, will move to left hand (same set)
+    } else if (currentHand == firstHand) {
+      // After this, will move to second hand (same set)
       if (_currentExerciseIndex + 1 < _exercises.length) {
         nextExercise = _exercises[_currentExerciseIndex + 1];
         nextHand = _exerciseHands[_currentExerciseIndex + 1];
         nextSetNumber = _currentSet;
       }
-    } else if (currentHand == 'left' && _currentSet < currentExercise.sets) {
-      // After this, will move back to right hand (next set)
+    } else if (currentHand == secondHand && _currentSet < currentExercise.sets) {
+      // After this, will move back to first hand (next set)
       nextExercise = _exercises[_currentExerciseIndex - 1];
       nextHand = _exerciseHands[_currentExerciseIndex - 1];
       nextSetNumber = _currentSet + 1;
@@ -708,7 +749,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
       nextSetNumber = _currentSet + 1;
     } else {
       // Will move to next exercise (or complete workout)
-      final nextIndex = currentHand == 'left' ? _currentExerciseIndex + 1 : _currentExerciseIndex + 1;
+      final nextIndex = _currentExerciseIndex + 1;
       if (nextIndex < _exercises.length) {
         nextExercise = _exercises[nextIndex];
         nextHand = _exerciseHands[nextIndex];
@@ -767,7 +808,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 if (currentExercise.weight != null &&
                     currentExercise.weight! > 0)
                   Text(
-                    '${currentExercise.weight!.toInt()}kg',
+                    '${currentExercise.weight!.toInt()}$_unitSuffix',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 30,
@@ -801,7 +842,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
             const SizedBox(height: 8),
             Text(
               '${nextExercise.name}${nextHand != null ? ' ($nextHand)' : ''} (${nextSetNumber ?? 1}/${nextExercise.sets})'
-              '${nextExercise.weight != null && nextExercise.weight! > 0 ? ' ${nextExercise.weight!.toInt()}kg' : ''}',
+              '${nextExercise.weight != null && nextExercise.weight! > 0 ? ' ${nextExercise.weight!.toInt()}$_unitSuffix' : ''}',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -863,7 +904,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
           const SizedBox(height: 8),
           Text(
             '${nextExercise.name}${nextHand != null ? ' ($nextHand)' : ''} ($_currentSet/${nextExercise.sets})'
-            '${nextExercise.weight != null && nextExercise.weight! > 0 ? ' ${nextExercise.weight!.toInt()}kg' : ''}',
+            '${nextExercise.weight != null && nextExercise.weight! > 0 ? ' ${nextExercise.weight!.toInt()}$_unitSuffix' : ''}',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 16,

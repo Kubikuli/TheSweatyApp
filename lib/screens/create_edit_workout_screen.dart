@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/workout.dart';
 import '../models/exercise.dart';
 import '../services/workout_service.dart';
@@ -34,6 +35,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
   final Set<int> _expandedGroups = {}; // Track which groups are expanded
   bool _suppressExitConfirm = false; // allow silent pop after save
   bool _hasUnsavedChanges = false;
+  String _unitSystem = 'metric';
 
   void _markChanged() {
     _hasUnsavedChanges = true;
@@ -42,6 +44,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUnitSystem();
     if (widget.workout != null) {
       _nameController.text = widget.workout!.name;
       _descriptionController.text = widget.workout!.description ?? '';
@@ -75,6 +78,15 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
     }
     super.dispose();
   }
+
+  Future<void> _loadUnitSystem() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _unitSystem = prefs.getString('unit_system') ?? 'metric';
+    });
+  }
+
+  String get _unitSuffix => _unitSystem == 'imperial' ? 'lb' : 'kg';
 
   String _colorToHex(Color color) {
     return '#${color.value.toRadixString(16).padLeft(8, '0').toUpperCase()}';
@@ -423,7 +435,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'kg',
+                        _unitSuffix,
                         style: TextStyle(
                           color: isGroup ? Colors.grey.shade600 : null,
                         ),
