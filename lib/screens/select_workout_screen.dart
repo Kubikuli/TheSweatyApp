@@ -100,7 +100,7 @@ class _SelectWorkoutScreenState extends State<SelectWorkoutScreen> {
     try {
       final sessionId = await _workoutService.startWorkoutSession(workout.id!);
       if (!mounted) return;
-      Navigator.pushReplacement(
+      final refreshNeeded = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
           builder: (context) => ActiveWorkoutScreen(
@@ -109,6 +109,9 @@ class _SelectWorkoutScreenState extends State<SelectWorkoutScreen> {
           ),
         ),
       );
+      if (!mounted) return;
+      // Pop back to calendar with the refresh signal
+      Navigator.pop(context, refreshNeeded ?? false);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

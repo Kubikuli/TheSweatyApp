@@ -99,7 +99,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
       MaterialPageRoute(
         builder: (context) => const SelectWorkoutScreen(),
       ),
-    ).then((_) => _loadData());
+    ).then((refreshNeeded) {
+      if (refreshNeeded == true) {
+        // Refresh the calendar to show the newly completed workout
+        _loadData();
+      }
+    });
   }
 
   List<DateTime> _getWeekDays() {
@@ -256,8 +261,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             });
 
                             String formatLen(int secs) {
+                              final h = secs ~/ 3600;
                               final m = (secs % 3600) ~/ 60;
                               final s = secs % 60;
+                              if (h > 0) {
+                                return '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+                              }
                               return '$m:${s.toString().padLeft(2, '0')}';
                             }
 

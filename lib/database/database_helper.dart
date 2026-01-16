@@ -23,13 +23,13 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      // Reset to initial version since this is now treated as the first release.
-      version: 1,
+      version: 2,
       onConfigure: (db) async {
         // Ensure foreign key constraints are enforced
         await db.execute('PRAGMA foreign_keys = ON');
       },
       onCreate: _createDB,
+      onUpgrade: _upgradeDB,
     );
   }
 
@@ -56,9 +56,8 @@ class DatabaseHelper {
         workout_id INTEGER NOT NULL,
         name TEXT NOT NULL,
         sets INTEGER NOT NULL,
-        reps INTEGER NOT NULL,
+        reps INTEGER,
         weight REAL,
-        notes TEXT,
         order_index INTEGER NOT NULL,
         is_group INTEGER NOT NULL DEFAULT 0,
         parent_group_id INTEGER,
@@ -86,11 +85,63 @@ class DatabaseHelper {
       CREATE TABLE timer_sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         start_time TEXT NOT NULL,
-        end_time TEXT,
-        duration_seconds INTEGER NOT NULL,
-        notes TEXT
+        duration_seconds INTEGER NOT NULL
       )
     ''');
+  }
+
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    // Migration from version 1 to version 2: Make reps nullable
+    if (oldVersion < 2) {
+      // SQLite doesn't support dropping columns directly, so we need to:
+      // 1. Create a new table with the updated schema
+      // 2. Copy data from the old table
+      // 3. Drop the old table
+      // 4. Rename the new table
+
+      await db.execute('''
+        CREATE TABLE exercises_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workout_id INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          sets INTEGER NOT NULL,
+          reps INTEGER,
+          weight REAL,
+          order_index INTEGER NOT NULL,
+          is_group INTEGER NOT NULL DEFAULT 0,
+          parent_group_id INTEGER,
+          per_hand INTEGER NOT NULL DEFAULT 0,
+          FOREIGN KEY (workout_id) REFERENCES workouts (id) ON DELETE CASCADE
+        )
+      ''');
+
+      await db.execute('''
+        INSERT INTO exercises_new (id, workout_id, name, sets, reps, weight, order_index, is_group, parent_group_id, per_hand)
+        SELECT id, workout_id, name, sets, reps, weight, order_index, is_group, parent_group_id, per_hand
+        FROM exercises
+      ''');
+
+      await db.execute('DROP TABLE exercises');
+      await db.execute('ALTER TABLE exercises_new RENAME TO exercises');
+
+      // Migrate timer_sessions to remove end_time and keep only duration_seconds
+      await db.execute('''
+        CREATE TABLE timer_sessions_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          start_time TEXT NOT NULL,
+          duration_seconds INTEGER NOT NULL
+        )
+      ''');
+
+      await db.execute('''
+        INSERT INTO timer_sessions_new (id, start_time, duration_seconds)
+        SELECT id, start_time, duration_seconds
+        FROM timer_sessions
+      ''');
+
+      await db.execute('DROP TABLE timer_sessions');
+      await db.execute('ALTER TABLE timer_sessions_new RENAME TO timer_sessions');
+    }
   }
 
   // Workout CRUD operations

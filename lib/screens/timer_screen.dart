@@ -83,7 +83,6 @@ class _TimerScreenState extends State<TimerScreen> {
     if (total.inSeconds > 0) {
       final session = TimerSession(
         startTime: _effectiveStartTime(),
-        endTime: DateTime.now(),
         durationSeconds: total.inSeconds,
       );
       

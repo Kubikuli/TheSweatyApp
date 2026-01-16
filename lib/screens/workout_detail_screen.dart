@@ -279,8 +279,8 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                             const SizedBox(height: 4),
                                             if (isSubExercise)
                                               Text(
-                                                '${exercise.reps} reps'
-                                                '${exercise.weight != null ? ' | ${exercise.weight}$_unitSuffix' : ''}'
+                                                '${exercise.reps != null ? '${exercise.reps} reps' : ''}'
+                                                '${exercise.weight != null ? '${exercise.reps != null ? ' | ' : ''}${exercise.weight! % 1 == 0 ? exercise.weight!.toInt() : exercise.weight!.toStringAsFixed(1)}$_unitSuffix' : ''}'
                                                 '${exercise.perHand ? ' (each hand)' : ''}',
                                                 style: TextStyle(
                                                   color: Colors.grey.shade600,
@@ -289,8 +289,8 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                               )
                                             else if (!isGroup)
                                               Text(
-                                                '${exercise.sets} sets × ${exercise.reps} reps'
-                                                '${exercise.weight != null ? ' | ${exercise.weight}$_unitSuffix' : ''}'
+                                                '${exercise.sets} sets${exercise.reps != null ? ' × ${exercise.reps} reps' : ''}'
+                                                '${exercise.weight != null ? ' | ${exercise.weight! % 1 == 0 ? exercise.weight!.toInt() : exercise.weight!.toStringAsFixed(1)}$_unitSuffix' : ''}'
                                                 '${exercise.perHand ? ' (each hand)' : ''}',
                                                 style: TextStyle(
                                                   color: Colors.grey.shade600,

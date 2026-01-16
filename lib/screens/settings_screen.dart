@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import '../providers/theme_provider.dart';
+import '../services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -9,8 +13,10 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _notificationsEnabled = true;
   bool _soundEnabled = true;
+  bool _dailyRemindersEnabled = false;
+  int _reminderHour = 9;
+  int _reminderMinute = 0;
   String _unitSystem = 'metric'; // 'metric' or 'imperial'
   int _handRestSeconds = 30;
   bool _rightHandFirst = true; // true: right->left, false: left->right
@@ -32,8 +38,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
       _soundEnabled = prefs.getBool('sound_enabled') ?? true;
+      _dailyRemindersEnabled = prefs.getBool('daily_reminders_enabled') ?? false;
+      _reminderHour = prefs.getInt('reminder_hour') ?? 9;
+      _reminderMinute = prefs.getInt('reminder_minute') ?? 0;
       _unitSystem = prefs.getString('unit_system') ?? 'metric';
       _handRestSeconds = prefs.getInt('hand_rest_seconds') ?? 30;
       _rightHandFirst = (prefs.getString('hand_order') ?? 'right_left') != 'left_right';
@@ -56,16 +64,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setInt(key, value);
   }
 
+  Future<void> _updateReminder(bool enabled, {int? hour, int? minute}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final finalHour = hour ?? _reminderHour;
+    final finalMinute = minute ?? _reminderMinute;
+
+    if (enabled) {
+      // Schedule the reminder
+      await NotificationService.instance
+          .scheduleDailyWorkoutReminder(hour: finalHour, minute: finalMinute);
+    } else {
+      // Cancel the reminder
+      await NotificationService.instance.cancelReminders();
+    }
+
+    await prefs.setBool('daily_reminders_enabled', enabled);
+  }
+
+  void _showTimePickerDialog() async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: _reminderHour, minute: _reminderMinute),
+    );
+
+    if (time != null) {
+      setState(() {
+        _reminderHour = time.hour;
+        _reminderMinute = time.minute;
+      });
+
+      if (_dailyRemindersEnabled) {
+        await _updateReminder(true, hour: time.hour, minute: time.minute);
+      }
+    }
+  }
+
   Future<void> _resetToDefaults() async {
-    const defaultNotifications = true;
     const defaultSound = true;
     const defaultUnit = 'metric';
     const defaultHandRest = 30;
     const defaultHandOrder = 'right_left';
 
     setState(() {
-      _notificationsEnabled = defaultNotifications;
       _soundEnabled = defaultSound;
+      _dailyRemindersEnabled = true;
+      _reminderHour = 15;
+      _reminderMinute = 0;
       _unitSystem = defaultUnit;
       _handRestSeconds = defaultHandRest;
       _rightHandFirst = true;
@@ -73,11 +117,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('notifications_enabled', defaultNotifications);
     await prefs.setBool('sound_enabled', defaultSound);
+    await prefs.setBool('daily_reminders_enabled', false);
     await prefs.setString('unit_system', defaultUnit);
     await prefs.setInt('hand_rest_seconds', defaultHandRest);
     await prefs.setString('hand_order', defaultHandOrder);
+    
+    // Cancel any scheduled reminders
+    await NotificationService.instance.cancelReminders();
+    
+    // Reset theme to default
+    context.read<ThemeProvider>().resetToDefault();
   }
 
   Future<void> _confirmAndRestore() async {
@@ -104,6 +154,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  void _showColorPicker(BuildContext context) {
+    Color current = context.read<ThemeProvider>().primaryColor;
+    Color temp = current;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pick a color'),
+        content: SingleChildScrollView(
+          child: ColorPicker(
+            pickerColor: current,
+            onColorChanged: (c) => temp = c,
+            enableAlpha: false,
+            displayThumbColor: true,
+            pickerAreaBorderRadius: const BorderRadius.all(Radius.circular(12)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              context.read<ThemeProvider>().setPrimaryColor(temp);
+              Navigator.pop(context);
+            },
+            child: const Text('Use Color'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,22 +204,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: Text('General'),
           ),
           SwitchListTile(
-            title: const Text('Notifications'),
-            subtitle: const Text('Enable workout reminders and alerts'),
-            value: _notificationsEnabled,
+            title: const Text('Daily Workout Reminder'),
+            subtitle: const Text('Get reminded if you haven\'t worked out today'),
+            value: _dailyRemindersEnabled,
             onChanged: (v) async {
-              setState(() => _notificationsEnabled = v);
-              await _saveBool('notifications_enabled', v);
+              setState(() => _dailyRemindersEnabled = v);
+              await _updateReminder(v);
             },
           ),
+          if (_dailyRemindersEnabled)
+            ListTile(
+              title: const Text('Reminder Time'),
+              subtitle: Text(
+                '${_reminderHour.toString().padLeft(2, '0')}:${_reminderMinute.toString().padLeft(2, '0')}',
+              ),
+              trailing: const Icon(Icons.schedule),
+              onTap: _showTimePickerDialog,
+            ),
           SwitchListTile(
             title: const Text('Sound'),
-            subtitle: const Text('Play sounds for timers'),
+            subtitle: const Text('Play timer sounds during active workout'),
             value: _soundEnabled,
             onChanged: (v) async {
               setState(() => _soundEnabled = v);
               await _saveBool('sound_enabled', v);
             },
+          ),
+          const Divider(),
+          const ListTile(
+            title: Text('Appearance'),
+          ),
+          ListTile(
+            title: const Text('Primary Color'),
+            subtitle: const Text('Choose your theme color'),
+            trailing: GestureDetector(
+              onTap: () => _showColorPicker(context),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: context.read<ThemeProvider>().primaryColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.grey, width: 2),
+                ),
+              ),
+            ),
           ),
           const Divider(),
           const ListTile(

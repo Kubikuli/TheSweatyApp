@@ -70,7 +70,12 @@ class _MainScreenState extends State<MainScreen> {
                     sessionId: latest.id!,
                   ),
                 ),
-              );
+              ).then((refreshNeeded) {
+                if (refreshNeeded == true) {
+                  // Refresh main screen by going to calendar tab
+                  setState(() => _currentIndex = 1);
+                }
+              });
             },
             child: const Text('Continue'),
           ),

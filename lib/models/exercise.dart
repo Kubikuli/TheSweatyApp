@@ -1,11 +1,12 @@
 class Exercise {
+  static const _sentinel = Object();
+
   final int? id;
   final int workoutId;
   final String name;
   final int sets;
-  final int reps;
+  final int? reps;
   final double? weight;
-  final String? notes;
   final int orderIndex;
   final bool isGroup; // true if this exercise is a group/superset container
   final int? parentGroupId; // points to parent group exercise id when part of a group
@@ -16,9 +17,8 @@ class Exercise {
     required this.workoutId,
     required this.name,
     required this.sets,
-    required this.reps,
+    this.reps,
     this.weight,
-    this.notes,
     required this.orderIndex,
     this.isGroup = false,
     this.parentGroupId,
@@ -33,7 +33,6 @@ class Exercise {
       'sets': sets,
       'reps': reps,
       'weight': weight,
-      'notes': notes,
       'order_index': orderIndex,
       'is_group': isGroup ? 1 : 0,
       'parent_group_id': parentGroupId,
@@ -47,9 +46,8 @@ class Exercise {
       workoutId: map['workout_id'] as int,
       name: map['name'] as String,
       sets: map['sets'] as int,
-      reps: map['reps'] as int,
+      reps: map['reps'] as int?,
       weight: (map['weight'] as num?)?.toDouble(),
-      notes: map['notes'] as String?,
       orderIndex: map['order_index'] as int,
       isGroup: ((map['is_group'] ?? 0) as int) == 1,
       parentGroupId: map['parent_group_id'] as int?,
@@ -62,9 +60,8 @@ class Exercise {
     int? workoutId,
     String? name,
     int? sets,
-    int? reps,
-    double? weight,
-    String? notes,
+    Object? reps = _sentinel,
+    Object? weight = _sentinel,
     int? orderIndex,
     bool? isGroup,
     int? parentGroupId,
@@ -75,9 +72,8 @@ class Exercise {
       workoutId: workoutId ?? this.workoutId,
       name: name ?? this.name,
       sets: sets ?? this.sets,
-      reps: reps ?? this.reps,
-      weight: weight ?? this.weight,
-      notes: notes ?? this.notes,
+      reps: identical(reps, _sentinel) ? this.reps : reps as int?,
+      weight: identical(weight, _sentinel) ? this.weight : weight as double?,
       orderIndex: orderIndex ?? this.orderIndex,
       isGroup: isGroup ?? this.isGroup,
       parentGroupId: parentGroupId ?? this.parentGroupId,

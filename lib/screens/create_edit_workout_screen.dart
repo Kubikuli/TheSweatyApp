@@ -200,7 +200,6 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
           sets: exercise.sets,
           reps: exercise.reps,
           weight: exercise.weight,
-          notes: exercise.notes,
           orderIndex: i,
           isGroup: exercise.isGroup,
           parentGroupId: exercise.parentGroupId,
@@ -240,7 +239,6 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
           sets: exercise.sets,
           reps: exercise.reps,
           weight: exercise.weight,
-          notes: exercise.notes,
           orderIndex: i,
           isGroup: exercise.isGroup,
           parentGroupId: parentId,
@@ -338,7 +336,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
   void _editExerciseBottomSheet(int index) {
     final ex = _exercises[index];
     final weightCtrl = TextEditingController(text: ex.weight?.toString() ?? '');
-    final repsCtrl = TextEditingController(text: ex.reps.toString());
+    final repsCtrl = TextEditingController(text: ex.reps?.toString() ?? '');
 
     showModalBottomSheet(
       context: context,
@@ -425,7 +423,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                             hintStyle: TextStyle(color: const Color.fromARGB(255, 116, 116, 116)),
                           ),
                           onChanged: (v) {
-                            final w = double.tryParse(v);
+                            final w = v.trim().isEmpty ? null : double.tryParse(v);
                             setState(() {
                               _exercises[index] = _exercises[index].copyWith(weight: w);
                               _hasUnsavedChanges = true;
@@ -462,7 +460,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                             hintStyle: TextStyle(color: const Color.fromARGB(255, 116, 116, 116)),
                           ),
                           onChanged: (v) {
-                            final r = int.tryParse(v) ?? _exercises[index].reps;
+                            final r = v.trim().isEmpty ? null : int.tryParse(v);
                             setState(() {
                               _exercises[index] = _exercises[index].copyWith(reps: r);
                               _hasUnsavedChanges = true;

@@ -360,7 +360,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop(); // Close dialog
-                Navigator.of(context).pop(); // Return to calendar
+                Navigator.of(context).pop(true); // Return to calendar with refresh signal
               },
               child: const Text('Done'),
             ),
@@ -398,7 +398,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
       try {
         await _workoutService.deleteWorkoutSession(widget.sessionId);
         if (!mounted) return;
-        Navigator.pop(context);
+        Navigator.pop(context, false);
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -657,7 +657,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     '${exercise.name}${hand != null ? ' ($hand)' : ''} (${exercise.sets}x)'
-                    '${exercise.weight != null && exercise.weight! > 0 ? ' - ${exercise.weight!.toInt()}$_unitSuffix' : ''}',
+                    '${exercise.weight != null && exercise.weight! > 0 ? ' - ${exercise.weight! % 1 == 0 ? exercise.weight!.toInt() : exercise.weight!.toStringAsFixed(1)}$_unitSuffix' : ''}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -801,14 +801,14 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
             const SizedBox(height: 40),
           if (currentExercise.weight != null &&
                   currentExercise.weight! > 0 ||
-              currentExercise.reps > 0)
+              currentExercise.reps != null && currentExercise.reps! > 0)
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (currentExercise.weight != null &&
                     currentExercise.weight! > 0)
                   Text(
-                    '${currentExercise.weight!.toInt()}$_unitSuffix',
+                    '${currentExercise.weight! % 1 == 0 ? currentExercise.weight!.toInt() : currentExercise.weight!.toStringAsFixed(1)}$_unitSuffix',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 30,
@@ -817,9 +817,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                   ),
                 if (currentExercise.weight != null &&
                         currentExercise.weight! > 0 &&
-                        currentExercise.reps > 0)
+                        currentExercise.reps != null && currentExercise.reps! > 0)
                   const SizedBox(width: 170),
-                if (currentExercise.reps > 0)
+                if (currentExercise.reps != null && currentExercise.reps! > 0)
                   Text(
                     '${currentExercise.reps}x',
                     style: const TextStyle(

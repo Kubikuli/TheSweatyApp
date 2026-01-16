@@ -17,6 +17,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   bool _loading = true;
   StatsRangeOption _range = StatsRangeOption.allTime;
   int _totalCompleted = 0;
+  Duration _totalWorkoutTime = Duration.zero;
   double _avgPerWeek = 0;
   DateTime? _lastWorkoutDate;
   Map<Workout, int> _perWorkoutCounts = {};
@@ -49,15 +50,24 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     final completedSessions = sessionsInRange.where((s) => s.isCompleted && s.endTime != null).toList();
     _totalCompleted = completedSessions.length;
 
-    // Average per week: divide by number of weeks since first completed workout in range
+    // Calculate total workout time
+    final totalWorkoutSeconds = completedSessions.fold<int>(0, (sum, s) => sum + s.endTime!.difference(s.startTime).inSeconds);
+    _totalWorkoutTime = Duration(seconds: totalWorkoutSeconds);
+
+    // Average per week: divide by number of distinct calendar weeks with workouts
     if (completedSessions.isNotEmpty) {
       completedSessions.sort((a, b) => a.endTime!.compareTo(b.endTime!));
-      final firstCompletedDate = completedSessions.first.endTime!;
-      final days = range.end
-          .difference(DateTime(firstCompletedDate.year, firstCompletedDate.month, firstCompletedDate.day))
-          .inDays + 1;
-      final int weeksInt = (days / 7.0).ceil().clamp(1, 1000000);
-      _avgPerWeek = _totalCompleted / weeksInt;
+      
+      // Count distinct calendar weeks that have at least one completed workout
+      final Set<String> weeksWithWorkouts = {};
+      for (final session in completedSessions) {
+        final date = session.endTime!;
+        final weekNum = _getWeekNumber(date);
+        weeksWithWorkouts.add('${date.year}-W$weekNum');
+      }
+      
+      final int numberOfWeeks = weeksWithWorkouts.isEmpty ? 1 : weeksWithWorkouts.length;
+      _avgPerWeek = _totalCompleted / numberOfWeeks;
       _lastWorkoutDate = completedSessions.last.endTime;
     } else {
       _avgPerWeek = 0;
@@ -89,15 +99,14 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       if (longestTimerSession == null ||
           s.durationSeconds > longestTimerSession.durationSeconds ||
           (s.durationSeconds == longestTimerSession.durationSeconds &&
-              (s.endTime ?? s.startTime)
-                  .isAfter(longestTimerSession.endTime ?? longestTimerSession.startTime))) {
+              s.startTime.isAfter(longestTimerSession.startTime))) {
         longestTimerSession = s;
       }
     }
     _totalTimerDuration = Duration(seconds: totalTimerSeconds);
     if (longestTimerSession != null) {
       _maxTimerDuration = Duration(seconds: longestTimerSession.durationSeconds);
-      _maxTimerDate = longestTimerSession.endTime ?? longestTimerSession.startTime;
+      _maxTimerDate = longestTimerSession.startTime;
     } else {
       _maxTimerDuration = Duration.zero;
       _maxTimerDate = null;
@@ -165,6 +174,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     title: 'Avg per Week',
                     value: _avgPerWeek.toStringAsFixed(2),
                     icon: Icons.calendar_view_week,
+                  ),
+                  const SizedBox(height: 12),
+                  _StatCard(
+                    title: 'Time Spent Working Out',
+                    value: _formatDuration(_totalWorkoutTime),
+                    icon: Icons.hourglass_bottom,
                   ),
                   const SizedBox(height: 12),
                   _StatCard(
@@ -280,6 +295,14 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
   DateTime _endOfDay(DateTime d) {
     return DateTime(d.year, d.month, d.day, 23, 59, 59, 999);
+  }
+
+  int _getWeekNumber(DateTime date) {
+    // Calculate ISO 8601 week number
+    final jan4 = DateTime(date.year, 1, 4);
+    final dayOfYear = date.difference(DateTime(date.year, 1, 1)).inDays + 1;
+    final jan4DayOfWeek = jan4.weekday;
+    return ((dayOfYear + jan4DayOfWeek - 2) ~/ 7) + 1;
   }
 }
 
