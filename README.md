@@ -16,7 +16,7 @@ A personalized Flutter workout tracking application with local database storage 
 
 **TheSweatyApp** is a fully-featured Flutter workout tracking application designed for personal fitness management. Built with local-first architecture using SQLite, the app provides comprehensive workout planning, execution tracking, statistical analysis, and flexible timer functionality—all while keeping your data private and offline-accessible.
 
-**Current Version:** 1.2.5+8
+**Current Version:** 1.2.6+9
 
 ### Key Highlights
 - ✅ 100% offline functionality with local SQLite database

@@ -250,7 +250,6 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     final currentHand = _exerciseHands[_currentExerciseIndex];
     final isPartOfGroup = currentExercise.parentGroupId != null;
     final firstHand = _rightHandFirst ? 'right' : 'left';
-    final secondHand = _rightHandFirst ? 'left' : 'right';
     
     if (isPartOfGroup) {
       // For grouped exercises, cycle through all exercises in the group
@@ -529,7 +528,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
 
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, result) async {
         if (!didPop) {
           await _cancelWorkout();
         }

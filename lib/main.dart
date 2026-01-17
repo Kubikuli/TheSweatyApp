@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/main_screen.dart';
@@ -7,12 +8,25 @@ import 'screens/settings_screen.dart';
 import 'screens/backup_screen.dart';
 import 'services/notification_service.dart';
 import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize timezone
+  // Initialize timezone data
   tz.initializeTimeZones();
+  // Best-effort set tz.local using device offset to avoid UTC scheduling
+  final offset = DateTime.now().timeZoneOffset;
+  final hours = offset.inHours;
+  final name = hours == 0
+      ? 'UTC'
+      : (hours >= 0 ? 'Etc/GMT-$hours' : 'Etc/GMT+${-hours}');
+  try {
+    tz.setLocalLocation(tz.getLocation(name));
+  } catch (_) {
+    // Fallback to UTC if mapping fails
+    tz.setLocalLocation(tz.getLocation('UTC'));
+  }
   
   // Initialize notifications
   await NotificationService.instance.initialize();
@@ -36,6 +50,15 @@ class MyApp extends StatelessWidget {
           title: 'TheSweatyApp',
           debugShowCheckedModeBanner: false,
           themeMode: ThemeMode.dark,
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('en', 'GB'), // English (UK) - Monday-first week
+            Locale('en', 'US'), // English (US) - fallback
+          ],
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
             useMaterial3: true,

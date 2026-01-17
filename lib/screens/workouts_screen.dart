@@ -40,8 +40,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
         SnackBar(content: Text('Failed to load workouts: $e')),
       );
     } finally {
-      if (!mounted) return;
-      if (showLoader) {
+      if (showLoader && mounted) {
         setState(() => _isLoading = false);
       }
     }
@@ -122,8 +121,9 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
         SnackBar(content: Text('Failed to copy workout: $e')),
       );
     } finally {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -154,8 +154,9 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
         SnackBar(content: Text('Failed to delete workout: $e')),
       );
     } finally {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -272,7 +273,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                           child: ListTile(
                             leading: CircleAvatar(
                               backgroundColor: workoutColor != null
-                                  ? Colors.white.withOpacity(0.3)
+                                  ? Colors.white.withValues(alpha: 0.3)
                                   : null,
                               child: const Icon(Icons.fitness_center),
                             ),
@@ -289,7 +290,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen> {
                                       color: Theme.of(context)
                                           .colorScheme
                                           .onSurface
-                                          .withOpacity(0.7),
+                                          .withValues(alpha: 0.7),
                                     ),
                                   )
                                 : null,

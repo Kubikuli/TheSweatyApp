@@ -59,11 +59,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       completedSessions.sort((a, b) => a.endTime!.compareTo(b.endTime!));
       
       // Count distinct calendar weeks that have at least one completed workout
-      final Set<String> weeksWithWorkouts = {};
+      final Set<DateTime> weeksWithWorkouts = {};
       for (final session in completedSessions) {
         final date = session.endTime!;
-        final weekNum = _getWeekNumber(date);
-        weeksWithWorkouts.add('${date.year}-W$weekNum');
+        final weekStart = _getWeekStart(date);
+        weeksWithWorkouts.add(weekStart);
       }
       
       final int numberOfWeeks = weeksWithWorkouts.isEmpty ? 1 : weeksWithWorkouts.length;
@@ -284,6 +284,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       firstDate: DateTime(2000),
       lastDate: now,
       initialDateRange: initial,
+      locale: const Locale('en', 'GB'), // Use British locale for Monday-first week
     );
     if (picked == null) return;
     setState(() {
@@ -297,12 +298,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return DateTime(d.year, d.month, d.day, 23, 59, 59, 999);
   }
 
-  int _getWeekNumber(DateTime date) {
-    // Calculate ISO 8601 week number
-    final jan4 = DateTime(date.year, 1, 4);
-    final dayOfYear = date.difference(DateTime(date.year, 1, 1)).inDays + 1;
-    final jan4DayOfWeek = jan4.weekday;
-    return ((dayOfYear + jan4DayOfWeek - 2) ~/ 7) + 1;
+  DateTime _getWeekStart(DateTime date) {
+    // Normalize to date-only (midnight) to avoid time-based comparison issues
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    // Monday is 1, Sunday is 7. Subtract (weekday - 1) to get to Monday
+    return dateOnly.subtract(Duration(days: dateOnly.weekday - 1));
   }
 }
 

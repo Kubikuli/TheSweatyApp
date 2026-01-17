@@ -492,31 +492,39 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
       '#FFB67F1E', // Amber
     ];
 
-    return WillPopScope(
-      onWillPop: () async {
-        if (_suppressExitConfirm) {
-          _suppressExitConfirm = false;
-          return true;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (!didPop) {
+          if (_suppressExitConfirm) {
+            _suppressExitConfirm = false;
+            return;
+          }
+          if (!_hasUnsavedChanges) {
+            if (mounted) Navigator.of(context).pop();
+            return;
+          }
+          final shouldLeave = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Leave without saving?'),
+              content: const Text('Any unsaved changes will be lost.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Leave'),
+                ),
+              ],
+            ),
+          );
+          if (shouldLeave == true && mounted) {
+            Navigator.of(context).pop();
+          }
         }
-        if (!_hasUnsavedChanges) return true;
-        final shouldLeave = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Leave without saving?'),
-            content: const Text('Any unsaved changes will be lost.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Leave'),
-              ),
-            ],
-          ),
-        );
-        return shouldLeave ?? false;
       },
       child: Theme(
         data: Theme.of(context).copyWith(
@@ -791,7 +799,7 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                                       borderRadius: BorderRadius.circular(14),
                                       border: isSubExercise
                                           ? Border.all(
-                                              color: Colors.white.withOpacity(0.1),
+                                              color: Colors.white.withValues(alpha: 0.1),
                                               width: 1,
                                             )
                                           : null,
@@ -994,14 +1002,14 @@ class _CreateEditWorkoutScreenState extends State<CreateEditWorkoutScreen> {
                             Icon(
                               Icons.add_circle_outline,
                               size: 20,
-                              color: Colors.white.withOpacity(0.7),
+                              color: Colors.white.withValues(alpha: 0.7),
                             ),
                             const SizedBox(width: 8),
                             Text(
                               'Add exercise...',
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
-                                color: Colors.white.withOpacity(0.6),
+                                color: Colors.white.withValues(alpha: 0.6),
                               ),
                             ),
                           ],

@@ -15,6 +15,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _soundEnabled = true;
   bool _dailyRemindersEnabled = false;
+  bool _inexactDaily = false;
   int _reminderHour = 9;
   int _reminderMinute = 0;
   String _unitSystem = 'metric'; // 'metric' or 'imperial'
@@ -40,6 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _soundEnabled = prefs.getBool('sound_enabled') ?? true;
       _dailyRemindersEnabled = prefs.getBool('daily_reminders_enabled') ?? false;
+      _inexactDaily = prefs.getBool('daily_reminders_inexact') ?? false;
       _reminderHour = prefs.getInt('reminder_hour') ?? 9;
       _reminderMinute = prefs.getInt('reminder_minute') ?? 0;
       _unitSystem = prefs.getString('unit_system') ?? 'metric';
@@ -71,8 +73,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (enabled) {
       // Schedule the reminder
-      await NotificationService.instance
-          .scheduleDailyWorkoutReminder(hour: finalHour, minute: finalMinute);
+      if (_inexactDaily) {
+        await NotificationService.instance
+            .scheduleDailyWorkoutReminderPeriodic(hour: finalHour, minute: finalMinute);
+      } else {
+        await NotificationService.instance
+            .scheduleDailyWorkoutReminder(hour: finalHour, minute: finalMinute);
+      }
     } else {
       // Cancel the reminder
       await NotificationService.instance.cancelReminders();
@@ -127,7 +134,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await NotificationService.instance.cancelReminders();
     
     // Reset theme to default
-    context.read<ThemeProvider>().resetToDefault();
+    if (mounted) {
+      context.read<ThemeProvider>().resetToDefault();
+    }
   }
 
   Future<void> _confirmAndRestore() async {
@@ -212,6 +221,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               await _updateReminder(v);
             },
           ),
+          if (_dailyRemindersEnabled)
+            SwitchListTile(
+              title: const Text('Approximate timing (battery-friendly)'),
+              subtitle: const Text('Repeat roughly every 24h; ignores exact clock time'),
+              value: _inexactDaily,
+              onChanged: (v) async {
+                setState(() => _inexactDaily = v);
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('daily_reminders_inexact', v);
+                // Reschedule according to new mode
+                await _updateReminder(true);
+              },
+            ),
           if (_dailyRemindersEnabled)
             ListTile(
               title: const Text('Reminder Time'),
