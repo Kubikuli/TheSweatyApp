@@ -19,42 +19,33 @@ class NotificationService {
     // iOS initialization
     const DarwinInitializationSettings initializationSettingsIOS =
         DarwinInitializationSettings(
-      requestSoundPermission: true,
-      requestBadgePermission: true,
-      requestAlertPermission: true,
-    );
+          requestSoundPermission: true,
+          requestBadgePermission: true,
+          requestAlertPermission: true,
+        );
 
     const InitializationSettings initializationSettings =
         InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
-    );
+          android: initializationSettingsAndroid,
+          iOS: initializationSettingsIOS,
+        );
 
     await _notificationsPlugin.initialize(initializationSettings);
 
     // Request iOS permissions
     await _notificationsPlugin
         .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>()
-        ?.requestPermissions(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
+          IOSFlutterLocalNotificationsPlugin
+        >()
+        ?.requestPermissions(alert: true, badge: true, sound: true);
 
-    // Request Android permissions
+    // Create notification channel (Android)
     if (Platform.isAndroid) {
       final androidImplementation = _notificationsPlugin
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
-      
-      // Request notification permission (Android 13+)
-      await androidImplementation?.requestNotificationsPermission();
-      
-      // Request exact alarm permission (Android 12+)
-      await androidImplementation?.requestExactAlarmsPermission();
-      
-      // Create notification channel
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+
       const AndroidNotificationChannel channel = AndroidNotificationChannel(
         'workout_reminder',
         'Workout Reminders',
@@ -68,13 +59,54 @@ class NotificationService {
   }
 
   /// Schedule a daily workout reminder
-  Future<void> scheduleDailyWorkoutReminder({
+  /// Uses matchDateTimeComponents for true daily repetition
+  /// Returns true if scheduled successfully, false if permissions were denied
+  Future<bool> scheduleDailyWorkoutReminder({
     required int hour,
     required int minute,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('reminder_hour', hour);
     await prefs.setInt('reminder_minute', minute);
+
+    // Check and request permissions on Android
+    if (Platform.isAndroid) {
+      final androidImplementation = _notificationsPlugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+
+      // Check if notifications are already enabled
+      final notificationsEnabled =
+          await androidImplementation?.areNotificationsEnabled() ?? false;
+
+      if (!notificationsEnabled) {
+        // Try to request - this only works once
+        final granted =
+            await androidImplementation?.requestNotificationsPermission() ??
+            false;
+        if (!granted) {
+          return false;
+        }
+      }
+
+      // Check exact alarm permission
+      final canSchedule =
+          await androidImplementation?.canScheduleExactNotifications() ?? false;
+
+      if (!canSchedule) {
+        // Request exact alarm permission (opens settings)
+        await androidImplementation?.requestExactAlarmsPermission();
+
+        // Check again after user returns
+        final canScheduleNow =
+            await androidImplementation?.canScheduleExactNotifications() ??
+            false;
+        if (!canScheduleNow) {
+          return false;
+        }
+      }
+    }
 
     // Cancel existing reminder
     await _notificationsPlugin.cancel(1);
@@ -88,14 +120,18 @@ class NotificationService {
       nowTz.day,
       hour,
       minute,
+      0, // seconds
+      0, // milliseconds
+      0, // microseconds
     );
+
+    // If the scheduled time is in the past, schedule for tomorrow
     if (scheduledDate.isBefore(nowTz)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
 
-
     try {
-      // 1) Schedule one-shot exact notification for the next occurrence (ID 1)
+      // Schedule with matchDateTimeComponents for daily repetition
       await _notificationsPlugin.zonedSchedule(
         1,
         'Time to work out!',
@@ -121,124 +157,16 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
-      );
-
-      // 2) Schedule repeating daily starting tomorrow at the same time (ID 3)
-      final tz.TZDateTime startTomorrow = scheduledDate.add(const Duration(days: 1));
-      await _notificationsPlugin.zonedSchedule(
-        3,
-        'Time to work out!',
-        'You haven\'t completed a workout yet today. Let\'s get moving!',
-        startTomorrow,
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'workout_reminder',
-            'Workout Reminders',
-            channelDescription: 'Reminders to complete your daily workout',
-            importance: Importance.high,
-            priority: Priority.high,
-            enableVibration: true,
-            playSound: true,
-            icon: '@mipmap/ic_launcher',
-          ),
-          iOS: DarwinNotificationDetails(
-            presentAlert: true,
-            presentBadge: true,
-            presentSound: true,
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
       );
+      return true;
     } catch (e) {
-      // Ignore errors during scheduling
+      return false;
     }
-  }
-
-  /// Schedule a daily workout reminder using periodic (inexact) repeats
-  Future<void> scheduleDailyWorkoutReminderPeriodic({
-    required int hour,
-    required int minute,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('reminder_hour', hour);
-    await prefs.setInt('reminder_minute', minute);
-
-    // Cancel any existing exact schedules to avoid duplicates
-    await _notificationsPlugin.cancel(1);
-    await _notificationsPlugin.cancel(3);
-    await _notificationsPlugin.cancel(4);
-
-    try {
-      await _notificationsPlugin.periodicallyShow(
-        4,
-        'Time to work out!',
-        'You haven\'t completed a workout yet today. Let\'s get moving!',
-        RepeatInterval.daily,
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'workout_reminder',
-            'Workout Reminders',
-            channelDescription: 'Reminders to complete your daily workout',
-            importance: Importance.high,
-            priority: Priority.high,
-            enableVibration: true,
-            playSound: true,
-            icon: '@mipmap/ic_launcher',
-          ),
-          iOS: DarwinNotificationDetails(
-            presentAlert: true,
-            presentBadge: true,
-            presentSound: true,
-          ),
-        ),
-      );
-    } catch (e) {
-      // Ignore errors during scheduling
-    }
-  }
-
-  /// Show an immediate workout reminder notification
-  Future<void> showWorkoutReminder() async {
-    await _notificationsPlugin.show(
-      2,
-      'Time to work out!',
-      'You haven\'t completed a workout yet today. Let\'s get moving!',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'workout_reminder',
-          'Workout Reminders',
-          channelDescription: 'Reminders to complete your daily workout',
-          importance: Importance.high,
-          priority: Priority.high,
-          enableVibration: true,
-          playSound: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
-    );
   }
 
   /// Cancel all scheduled reminders
   Future<void> cancelReminders() async {
     await _notificationsPlugin.cancel(1);
-    await _notificationsPlugin.cancel(3);
-    await _notificationsPlugin.cancel(4);
-  }
-
-  /// Get saved reminder time
-  Future<Map<String, int>> getSavedReminderTime() async {
-    final prefs = await SharedPreferences.getInstance();
-    return {
-      'hour': prefs.getInt('reminder_hour') ?? 9,
-      'minute': prefs.getInt('reminder_minute') ?? 0,
-    };
   }
 }

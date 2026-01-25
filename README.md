@@ -9,14 +9,11 @@ A personalized Flutter workout tracking application with local database storage 
 - [User Guide](#user-guide)
 - [Database Design](#database-design)
 - [Project Structure](#project-structure)
-- [Development](#development)
-- [Version History](#version-history)
+- [Version History](#older-version-history)
 
 ## Overview
 
 **TheSweatyApp** is a fully-featured Flutter workout tracking application designed for personal fitness management. Built with local-first architecture using SQLite, the app provides comprehensive workout planning, execution tracking, statistical analysis, and flexible timer functionality—all while keeping your data private and offline-accessible.
-
-**Current Version:** 1.2.6+9
 
 ### Key Highlights
 - ✅ 100% offline functionality with local SQLite database
@@ -379,10 +376,9 @@ workout_app/
 └── README.md                               # Primary documentation
 ```
 
-## Version History
+## Older Version History
 
-### v1.2.5+8 (Current)
-- Added notifications
+### v1.2.6
 - Extended statistics
 - Added new customization settings
 - Many bugfixes and improvements
@@ -393,11 +389,10 @@ workout_app/
 - v1.0.x: Initial release with basic workout management
 
 ## Planned Features
-- Advanced charts and visualizations
-- Exercise images and video demonstrations
+- Advanced charts and statistics visualizations
 - Predefined exercise library
 - Enhanced desing
-- Audio cues and rest timer alerts
+- Rest timer alerts
 - Workout program templates
 
 ## Contributing

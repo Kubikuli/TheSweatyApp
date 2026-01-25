@@ -12,25 +12,53 @@ import 'package:timezone/timezone.dart' as tz;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize timezone data
   tz.initializeTimeZones();
-  // Best-effort set tz.local using device offset to avoid UTC scheduling
-  final offset = DateTime.now().timeZoneOffset;
-  final hours = offset.inHours;
-  final name = hours == 0
-      ? 'UTC'
-      : (hours >= 0 ? 'Etc/GMT-$hours' : 'Etc/GMT+${-hours}');
+
+  // Try to find the actual local timezone
   try {
-    tz.setLocalLocation(tz.getLocation(name));
-  } catch (_) {
-    // Fallback to UTC if mapping fails
+    final offset = DateTime.now().timeZoneOffset;
+    final offsetHours = offset.inHours;
+
+    // Map offset to timezone locations that handle DST correctly
+    String locationName;
+
+    if (offsetHours == 0) {
+      locationName = 'UTC';
+    } else if (offsetHours == 1) {
+      // Central European Time (Winter) or Western European Time
+      locationName = 'Europe/Berlin'; // Handles CET/CEST (UTC+1/+2)
+    } else if (offsetHours == 2) {
+      // Central European Summer Time or Eastern European Time
+      locationName =
+          'Europe/Berlin'; // Most likely CEST (summer time in Central Europe)
+    } else if (offsetHours == 3) {
+      locationName = 'Europe/Moscow'; // MSK
+    } else if (offsetHours == -5) {
+      locationName = 'America/New_York'; // EST/EDT
+    } else if (offsetHours == -6) {
+      locationName = 'America/Chicago'; // CST/CDT
+    } else if (offsetHours == -7) {
+      locationName = 'America/Denver'; // MST/MDT
+    } else if (offsetHours == -8) {
+      locationName = 'America/Los_Angeles'; // PST/PDT
+    } else {
+      // Fallback to Etc/GMT notation (no DST)
+      locationName = offsetHours >= 0
+          ? 'Etc/GMT-$offsetHours'
+          : 'Etc/GMT+${-offsetHours}';
+    }
+
+    tz.setLocalLocation(tz.getLocation(locationName));
+  } catch (e) {
+    // Ultimate fallback to UTC
     tz.setLocalLocation(tz.getLocation('UTC'));
   }
-  
+
   // Initialize notifications
   await NotificationService.instance.initialize();
-  
+
   runApp(
     ChangeNotifierProvider(
       create: (context) => ThemeProvider(),
@@ -59,11 +87,6 @@ class MyApp extends StatelessWidget {
             Locale('en', 'GB'), // English (UK) - Monday-first week
             Locale('en', 'US'), // English (US) - fallback
           ],
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-            useMaterial3: true,
-            brightness: Brightness.light,
-          ),
           darkTheme: ThemeData(
             useMaterial3: true,
             brightness: Brightness.dark,

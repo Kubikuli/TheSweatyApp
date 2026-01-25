@@ -413,6 +413,15 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
+  String _formatWeight(double? weight) {
+    if (weight == null || weight <= 0) return '';
+    if (weight % 1 == 0) return weight.toInt().toString();
+    final fixed = weight.toStringAsFixed(2);
+    return fixed
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+  }
+
   int _getCompletedSets() {
     // Unit-weighted progress (ignores reps):
     // - Regular exercise: 1 unit per set
@@ -656,7 +665,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     '${exercise.name}${hand != null ? ' ($hand)' : ''} (${exercise.sets}x)'
-                    '${exercise.weight != null && exercise.weight! > 0 ? ' - ${exercise.weight! % 1 == 0 ? exercise.weight!.toInt() : exercise.weight!.toStringAsFixed(1)}$_unitSuffix' : ''}',
+                    '${exercise.weight != null && exercise.weight! > 0 ? ' - ${_formatWeight(exercise.weight)}$_unitSuffix' : ''}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -807,7 +816,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 if (currentExercise.weight != null &&
                     currentExercise.weight! > 0)
                   Text(
-                    '${currentExercise.weight! % 1 == 0 ? currentExercise.weight!.toInt() : currentExercise.weight!.toStringAsFixed(1)}$_unitSuffix',
+                    '${_formatWeight(currentExercise.weight)}$_unitSuffix',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 30,
@@ -841,7 +850,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
             const SizedBox(height: 8),
             Text(
               '${nextExercise.name}${nextHand != null ? ' ($nextHand)' : ''} (${nextSetNumber ?? 1}/${nextExercise.sets})'
-              '${nextExercise.weight != null && nextExercise.weight! > 0 ? ' ${nextExercise.weight!.toInt()}$_unitSuffix' : ''}',
+              '${nextExercise.weight != null && nextExercise.weight! > 0 ? ' ${_formatWeight(nextExercise.weight)}$_unitSuffix' : ''}',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -903,7 +912,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
           const SizedBox(height: 8),
           Text(
             '${nextExercise.name}${nextHand != null ? ' ($nextHand)' : ''} ($_currentSet/${nextExercise.sets})'
-            '${nextExercise.weight != null && nextExercise.weight! > 0 ? ' ${nextExercise.weight!.toInt()}$_unitSuffix' : ''}',
+            '${nextExercise.weight != null && nextExercise.weight! > 0 ? ' ${_formatWeight(nextExercise.weight)}$_unitSuffix' : ''}',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
