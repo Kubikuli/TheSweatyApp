@@ -26,6 +26,15 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
 
   String get _unitSuffix => _unitSystem == 'imperial' ? 'lb' : 'kg';
 
+  String _formatWeight(double? weight) {
+    if (weight == null || weight <= 0) return '';
+    if (weight % 1 == 0) return weight.toInt().toString();
+    final fixed = weight.toStringAsFixed(2);
+    return fixed
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -280,7 +289,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                             if (isSubExercise)
                                               Text(
                                                 '${exercise.reps != null ? '${exercise.reps} reps' : ''}'
-                                                '${exercise.weight != null ? '${exercise.reps != null ? ' | ' : ''}${exercise.weight! % 1 == 0 ? exercise.weight!.toInt() : exercise.weight!.toStringAsFixed(1)}$_unitSuffix' : ''}'
+                                                '${exercise.weight != null ? '${exercise.reps != null ? ' | ' : ''}${_formatWeight(exercise.weight)}$_unitSuffix' : ''}'
                                                 '${exercise.perHand ? ' (each hand)' : ''}',
                                                 style: TextStyle(
                                                   color: Colors.grey.shade600,
@@ -290,7 +299,7 @@ class _WorkoutDetailScreenState extends State<WorkoutDetailScreen> {
                                             else if (!isGroup)
                                               Text(
                                                 '${exercise.sets} sets${exercise.reps != null ? ' × ${exercise.reps} reps' : ''}'
-                                                '${exercise.weight != null ? ' | ${exercise.weight! % 1 == 0 ? exercise.weight!.toInt() : exercise.weight!.toStringAsFixed(1)}$_unitSuffix' : ''}'
+                                                '${exercise.weight != null ? ' | ${_formatWeight(exercise.weight)}$_unitSuffix' : ''}'
                                                 '${exercise.perHand ? ' (each hand)' : ''}',
                                                 style: TextStyle(
                                                   color: Colors.grey.shade600,

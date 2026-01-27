@@ -40,7 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _soundEnabled = prefs.getBool('sound_enabled') ?? true;
       _dailyRemindersEnabled =
-          prefs.getBool('daily_reminders_enabled') ?? false;
+          prefs.getBool('daily_reminders_enable') ?? false;
       _reminderHour = prefs.getInt('reminder_hour') ?? 9;
       _reminderMinute = prefs.getInt('reminder_minute') ?? 0;
       _unitSystem = prefs.getString('unit_system') ?? 'metric';
@@ -64,7 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!success) {
         // Permission denied, revert the toggle
         setState(() => _dailyRemindersEnabled = false);
-        await prefs.setBool('daily_reminders_enabled', false);
+        await prefs.setBool('daily_reminders_enable', false);
 
         // Show message to user
         if (mounted) {
@@ -84,7 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await NotificationService.instance.cancelReminders();
     }
 
-    await prefs.setBool('daily_reminders_enabled', enabled);
+    await prefs.setBool('daily_reminders_enable', enabled);
   }
 
   void _showTimePickerDialog() async {
@@ -110,12 +110,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     const defaultUnit = 'metric';
     const defaultHandRest = 30;
     const defaultHandOrder = 'right_left';
+    const defaultReminderHour = 15;
+    const defaultReminderMinute = 0;
 
     setState(() {
       _soundEnabled = defaultSound;
       _dailyRemindersEnabled = false;
-      _reminderHour = 15;
-      _reminderMinute = 0;
+      _reminderHour = defaultReminderHour;
+      _reminderMinute = defaultReminderMinute;
       _unitSystem = defaultUnit;
       _handRestSeconds = defaultHandRest;
       _rightHandFirst = true;
@@ -124,7 +126,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('sound_enabled', defaultSound);
-    await prefs.setBool('daily_reminders_enabled', false);
+    await prefs.setBool('daily_reminders_enable', false);
+    await prefs.setInt('reminder_hour', defaultReminderHour);
+    await prefs.setInt('reminder_minute', defaultReminderMinute);
     await prefs.setString('unit_system', defaultUnit);
     await prefs.setInt('hand_rest_seconds', defaultHandRest);
     await prefs.setString('hand_order', defaultHandOrder);

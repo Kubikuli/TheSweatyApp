@@ -32,13 +32,6 @@ class NotificationService {
 
     await _notificationsPlugin.initialize(initializationSettings);
 
-    // Request iOS permissions
-    await _notificationsPlugin
-        .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
-        >()
-        ?.requestPermissions(alert: true, badge: true, sound: true);
-
     // Create notification channel (Android)
     if (Platform.isAndroid) {
       final androidImplementation = _notificationsPlugin
@@ -68,6 +61,26 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('reminder_hour', hour);
     await prefs.setInt('reminder_minute', minute);
+
+    // Request iOS permissions if needed
+    if (Platform.isIOS) {
+      final iosImplementation = _notificationsPlugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
+
+      final granted =
+          await iosImplementation?.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          ) ??
+          false;
+
+      if (!granted) {
+        return false;
+      }
+    }
 
     // Check and request permissions on Android
     if (Platform.isAndroid) {
@@ -134,8 +147,8 @@ class NotificationService {
       // Schedule with matchDateTimeComponents for daily repetition
       await _notificationsPlugin.zonedSchedule(
         1,
-        'Time to work out!',
-        'You haven\'t completed a workout yet today. Let\'s get moving!',
+        'Time to move!',
+        'Have you worked out yet today? Let\'s get moving! At least a little bit...',
         scheduledDate,
         const NotificationDetails(
           android: AndroidNotificationDetails(
