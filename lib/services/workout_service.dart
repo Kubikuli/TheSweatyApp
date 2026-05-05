@@ -82,11 +82,12 @@ class WorkoutService {
     return await _db.getWorkoutSessionsByDateRange(start, end);
   }
 
+  DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
+
   Future<List<WorkoutSession>> getWorkoutSessionsForWeek(DateTime date) async {
-    // Normalize to date-only (midnight) to avoid time-based comparison issues
-    final dateOnly = DateTime(date.year, date.month, date.day);
-    final startOfWeek = dateOnly.subtract(Duration(days: dateOnly.weekday - 1));
-    final endOfWeek = startOfWeek.add(const Duration(days: 7));
+    final dateOnly = _dateOnly(date);
+    final startOfWeek = DateTime(dateOnly.year, dateOnly.month, dateOnly.day - (dateOnly.weekday - 1));
+    final endOfWeek = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day + 7);
     return await getWorkoutSessionsByDateRange(startOfWeek, endOfWeek);
   }
 

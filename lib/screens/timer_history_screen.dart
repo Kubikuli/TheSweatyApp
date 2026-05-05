@@ -25,10 +25,11 @@ class _TimerHistoryScreenState extends State<TimerHistoryScreen> {
     _loadSessions();
   }
 
+  DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
+
   DateTime _getWeekStart(DateTime date) {
-    // Normalize to date-only (midnight) to avoid time-based comparison issues
-    final dateOnly = DateTime(date.year, date.month, date.day);
-    return dateOnly.subtract(Duration(days: dateOnly.weekday - 1));
+    final dateOnly = _dateOnly(date);
+    return DateTime(dateOnly.year, dateOnly.month, dateOnly.day - (dateOnly.weekday - 1));
   }
 
   Future<void> _loadSessions() async {
@@ -42,11 +43,25 @@ class _TimerHistoryScreenState extends State<TimerHistoryScreen> {
   }
 
   void _previousWeek() {
-    _setWeek(_selectedWeekStart.subtract(const Duration(days: 7)), -1);
+    _setWeek(
+      _getWeekStart(DateTime(
+        _selectedWeekStart.year,
+        _selectedWeekStart.month,
+        _selectedWeekStart.day - 7,
+      )),
+      -1,
+    );
   }
 
   void _nextWeek() {
-    _setWeek(_selectedWeekStart.add(const Duration(days: 7)), 1);
+    _setWeek(
+      _getWeekStart(DateTime(
+        _selectedWeekStart.year,
+        _selectedWeekStart.month,
+        _selectedWeekStart.day + 7,
+      )),
+      1,
+    );
   }
 
   void _goToCurrentWeek() {
@@ -104,7 +119,12 @@ class _TimerHistoryScreenState extends State<TimerHistoryScreen> {
   }
 
   List<DateTime> _getWeekDays() {
-    return List.generate(7, (index) => _selectedWeekStart.add(Duration(days: index)));
+    final weekStart = _getWeekStart(_selectedWeekStart);
+    return List.generate(7, (index) => DateTime(
+          weekStart.year,
+          weekStart.month,
+          weekStart.day + index,
+        ));
   }
 
   @override
